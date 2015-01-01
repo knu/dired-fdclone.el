@@ -497,6 +497,22 @@ with the longest match is adopted so `.tar.gz' is chosen over
           (diredfd-sort-lines nil beg (point)))))
     (set-buffer-modified-p nil)))
 
+(defcustom diredfd-highlight-line t
+  "If non-nil, the current line is highlighted like FDclone."
+  :type 'boolean
+  :group 'dired-fdclone)
+
+(defcustom diredfd-sort-by-type t
+  "If non-nil, directory entries are sorted by file type (directories first)."
+  :type 'boolean
+  :group 'dired-fdclone)
+
+(defun diredfd-dired-mode-setup ()
+  (if diredfd-highlight-line (hl-line-mode 1)))
+
+(defun diredfd-dired-after-readin-setup ()
+  (if diredfd-sort-by-type (diredfd-sort)))
+
 ;;;###autoload
 (defun dired-fdclone ()
   "Enable FDclone mimicking settings for dired."
@@ -533,9 +549,8 @@ with the longest match is adopted so `.tar.gz' is chosen over
 
   (setq dired-deletion-confirmer 'y-or-n-p)
 
-  (add-hook 'dired-mode-hook 'hl-line-mode)
-
-  (add-hook 'dired-after-readin-hook 'diredfd-sort))
+  (add-hook 'dired-mode-hook 'diredfd-dired-mode-setup)
+  (add-hook 'dired-after-readin-hook 'diredfd-dired-after-readin-setup))
 
 (provide 'dired-fdclone)
 
