@@ -98,12 +98,12 @@
   (interactive)
   (save-excursion
     (goto-char (point-min))
-    (loop until (eobp) do
-          (beginning-of-line)
-          (or (dired-between-files)
-              (looking-at-p dired-re-dot)
-              (diredfd-toggle-mark-here))
-          (dired-next-line 1))))
+    (while (not (eobp))
+      (beginning-of-line)
+      (or (dired-between-files)
+          (looking-at-p dired-re-dot)
+          (diredfd-toggle-mark-here))
+      (dired-next-line 1))))
 
 ;;;###autoload
 (defun diredfd-mark-or-unmark-all (&optional arg)
@@ -127,13 +127,13 @@ If ARG is given, mark all files including directories."
   (interactive)
   (save-excursion
     (goto-char (point-max))
-    (loop until (bobp) do
-          (beginning-of-line)
-          (or (dired-between-files)
-              (looking-at-p dired-re-dot)
-              (eq dired-marker-char (following-char))
-              (dired-kill-line 1))
-          (forward-line -1))))
+    (while (not (bobp))
+      (beginning-of-line)
+      (or (dired-between-files)
+          (looking-at-p dired-re-dot)
+          (eq dired-marker-char (following-char))
+          (dired-kill-line 1))
+      (forward-line -1))))
 
 ;;;###autoload
 (defun diredfd-narrow-to-files-regexp (regexp)
@@ -142,13 +142,13 @@ If ARG is given, mark all files including directories."
    (list (dired-read-regexp "Narrow to files (regexp): ")))
   (save-excursion
     (goto-char (point-max))
-    (loop until (bobp) do
-          (beginning-of-line)
-          (or (dired-between-files)
-              (looking-at-p dired-re-dot)
-              (string-match-p regexp (dired-get-filename nil t))
-              (dired-kill-line 1))
-          (forward-line -1))))
+    (while (not (bobp))
+      (beginning-of-line)
+      (or (dired-between-files)
+          (looking-at-p dired-re-dot)
+          (string-match-p regexp (dired-get-filename nil t))
+          (dired-kill-line 1))
+      (forward-line -1))))
 
 ;;;###autoload
 (defun diredfd-goto-filename (filename)
@@ -415,8 +415,8 @@ with the longest match is adopted so `.tar.gz' is chosen over
         (if (y-or-n-p (format "Directory %s does not exist; create? " directory))
             (make-directory directory t)
           (error "Unpack aborted.")))
-    (loop for archive in files
-          do (diredfd-unpack archive directory async))))
+    (dolist (archive files)
+      (diredfd-unpack archive directory async))))
 
 (defun diredfd-unpack (archive directory &optional async)
   "Unpack ARCHIVE into DIRECTORY, asynchronously if ASYNC is non-nil."
