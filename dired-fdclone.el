@@ -285,8 +285,8 @@ UNARCHIVE-COMMAND], where:
                          Nil means you shouldn't need or want to
                          manually do that.
 
-   unarchive-command is a shell command line that extracts files
-                         stored in an archive file of this
+   unarchive-command     is a shell command line that extracts
+                         files stored in an archive file of this
                          format, where a `?' separated with space
                          will be replaced by the archive filename
                          and a `*' separated with space by the
@@ -496,11 +496,6 @@ with the longest match is adopted so `.tar.gz' is chosen over
             (forward-line))
           (diredfd-sort-lines nil beg (point)))))
     (set-buffer-modified-p nil)))
-
-;; (defadvice dired-readin
-;;   (after dired-after-updating-hook first () activate)
-;;   "Sort dired listings with directories first before adding marks."
-;;   (mydired-sort))
 
 ;;;###autoload
 (defun dired-fdclone ()
