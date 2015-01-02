@@ -35,6 +35,8 @@
 ;;
 ;; dired-fdclone.el provides the following interactive commands:
 ;;
+;; * diredfd-goto-top
+;; * diredfd-goto-bottom
 ;; * diredfd-toggle-mark-here
 ;; * diredfd-toggle-mark
 ;; * diredfd-toggle-all-marks
@@ -67,6 +69,28 @@
 (defgroup dired-fdclone nil
   "Dired functions and settings to mimic FDclone."
   :group 'dired)
+
+(defun diredfd-goto-top ()
+  "Go to the top line of the current file list."
+  (interactive)
+  (while (and (not (bobp))
+              (dired-between-files))
+    (dired-previous-line 1))
+  (unless (bobp)
+    (while (not (dired-between-files))
+      (dired-previous-line 1))
+    (dired-next-line 1)))
+
+(defun diredfd-goto-bottom ()
+  "Go to the bottom line of the current file list."
+  (interactive)
+  (while (and (not (eobp))
+              (dired-between-files))
+    (dired-next-line 1))
+  (unless (eobp)
+    (while (not (dired-between-files))
+      (dired-next-line 1))
+    (dired-previous-line 1)))
 
 ;;;###autoload
 (defun diredfd-toggle-mark-here ()
@@ -524,6 +548,8 @@ with the longest match is adopted so `.tar.gz' is chosen over
   (define-key dired-mode-map "+"         'diredfd-mark-or-unmark-all)
   (define-key dired-mode-map "-"         'diredfd-toggle-all-marks)
   (define-key dired-mode-map "/"         'dired-do-search)
+  (define-key dired-mode-map "<"         'diredfd-goto-top)
+  (define-key dired-mode-map ">"         'diredfd-goto-bottom)
   (define-key dired-mode-map "D"         'dired-flag-file-deletion)
   (define-key dired-mode-map "\\"        'diredfd-enter-root-directory)
   (define-key dired-mode-map "a"         'dired-do-chmod)
