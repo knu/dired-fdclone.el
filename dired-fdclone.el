@@ -29,6 +29,7 @@
 ;; URL: https://github.com/knu/dired-fdclone.el
 ;; Created: 25 Dec 2014
 ;; Version: 1.1
+;; Package-Requires: ((helm-fns+ "0"))
 ;; Keywords: unix, directories, dired
 
 ;;; Commentary:
@@ -63,6 +64,7 @@
 
 (require 'dired-x)
 (require 'dired-aux)
+(require 'help-fns+)
 (require 'term)
 
 (eval-when-compile
@@ -602,6 +604,11 @@ with the longest match is adopted so `.tar.gz' is chosen over
 (defun diredfd-dired-after-readin-setup ()
   (if diredfd-sort-by-type (diredfd-sort)))
 
+(defun diredfd-help ()
+  "Show the help window."
+  (interactive)
+  (describe-keymap 'dired-mode-map))
+
 ;;;###autoload
 (defun dired-fdclone ()
   "Enable FDclone mimicking settings for dired."
@@ -615,6 +622,7 @@ with the longest match is adopted so `.tar.gz' is chosen over
   (define-key dired-mode-map "/"         'dired-do-search)
   (define-key dired-mode-map "<"         'diredfd-goto-top)
   (define-key dired-mode-map ">"         'diredfd-goto-bottom)
+  (define-key dired-mode-map "?"         'diredfd-help)
   (define-key dired-mode-map "D"         'dired-flag-file-deletion)
   (define-key dired-mode-map "\\"        'diredfd-enter-root-directory)
   (define-key dired-mode-map "a"         'dired-do-chmod)
