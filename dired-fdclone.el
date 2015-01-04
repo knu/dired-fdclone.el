@@ -44,7 +44,8 @@
 ;; * diredfd-narrow-to-marked-files
 ;; * diredfd-narrow-to-files-regexp
 ;; * diredfd-goto-filename
-;; * diredfd-do-flagged-delete-or-shell-command
+;; * diredfd-do-shell-command
+;; * diredfd-do-flagged-delete-or-execute
 ;; * diredfd-enter
 ;; * diredfd-enter-directory
 ;; * diredfd-enter-parent-directory
@@ -62,6 +63,7 @@
 
 (require 'dired-x)
 (require 'dired-aux)
+(require 'term)
 
 (eval-when-compile
   (require 'cl))
@@ -189,18 +191,81 @@ If ARG is given, mark all files including directories."
     (if pos (goto-char pos)
       (error "Filename not found: %s" filename))))
 
+(defun diredfd-do-shell-command (command)
+  "Open an ANSI terminal and run a COMMAND in it."
+  (interactive
+   (list (if current-prefix-arg ""
+           (read-shell-command "Shell command: "))))
+  (let* ((caller-buffer-name (buffer-name))
+         (shell (or explicit-shell-file-name
+                    (getenv "ESHELL")
+                    (getenv "SHELL")
+                    "/bin/sh"))
+         (args (if (string= command "") nil
+                 (list "-c" command)))
+         (buffer (get-buffer
+                  (apply 'term-ansi-make-term
+                         (generate-new-buffer-name
+                          (format "*%s - %s*"
+                                  "dired-shell"
+                                  default-directory))
+                         shell nil args))))
+    (with-current-buffer buffer
+      (term-mode)
+      (term-char-mode))
+    (set-process-sentinel
+     (get-buffer-process buffer)
+     `(lambda (proc msg)
+        (let ((buffer (process-buffer proc))
+              (return-to-caller-buffer
+               (lambda () (interactive)
+                 (kill-buffer (current-buffer))
+                 (switch-to-buffer ,caller-buffer-name))))
+          (term-sentinel proc msg)
+          (when (buffer-live-p buffer)
+            (with-current-buffer buffer
+              (local-set-key "q" return-to-caller-buffer)
+              (local-set-key " " return-to-caller-buffer)
+              (local-set-key (kbd "RET") return-to-caller-buffer)
+              (let ((buffer-read-only))
+                (insert "Hit SPC/RET/q to return...")))))))
+    (switch-to-buffer buffer)))
+
 ;;;###autoload
-(defun diredfd-do-flagged-delete-or-shell-command ()
-  "Run `dired-do-flagged-delete' if any file is flagged for deletion, or `shell-command' otherwise."
-  (interactive)
-  (if (let* ((dired-marker-char dired-del-marker)
-             (regexp (dired-marker-regexp))
-             case-fold-search)
-        (save-excursion (goto-char (point-min))
-                        (re-search-forward regexp nil t)))
+(defun diredfd-do-flagged-delete-or-execute (&optional arg)
+  "Run `dired-do-flagged-delete' if any file is flagged for deletion.
+If none is, run a shell command with all marked (or next ARG) files or the current file."
+  (interactive "P")
+  (if (save-excursion
+        (let* ((dired-marker-char dired-del-marker)
+               (regexp (dired-marker-regexp))
+               case-fold-search)
+          (goto-char (point-min))
+          (re-search-forward regexp nil t)))
       (dired-do-flagged-delete)
-    ;; Use call-interactively to pass through prefix-arg
-    (call-interactively 'dired-do-shell-command)))
+    (let* ((arg (and arg (prefix-numeric-value arg)))
+           (files (dired-get-marked-files t arg nil t))
+           (file (or (car files)
+                     (error "No file to execute")))
+           (initial-contents
+            (if (and (null (cdr files))
+                     (file-regular-p file)
+                     (file-executable-p file))
+                (concat (file-name-as-directory ".")
+                        (file-relative-name file)
+                        " ")
+              (cons
+               (concat " "
+                       (mapconcat
+                        (lambda (file)
+                          (shell-quote-argument
+                           (file-relative-name file)))
+                        (if (eq file t) (cdr files) files)
+                        " "))
+               1)))
+           (command (read-shell-command "Shell command: "
+                                        initial-contents)))
+      (diredfd-do-shell-command command))))
 
 ;;;###autoload
 (defun diredfd-enter ()
@@ -556,7 +621,7 @@ with the longest match is adopted so `.tar.gz' is chosen over
   (define-key dired-mode-map "c"         'dired-do-copy)
   (define-key dired-mode-map "d"         'dired-do-delete)
   (define-key dired-mode-map "f"         'diredfd-narrow-to-files-regexp)
-  (define-key dired-mode-map "h"         'shell-command)
+  (define-key dired-mode-map "h"         'diredfd-do-shell-command)
   (define-key dired-mode-map "k"         'dired-create-directory)
   (define-key dired-mode-map "l"         'diredfd-enter-directory)
   (define-key dired-mode-map "m"         'dired-do-rename)
@@ -566,7 +631,7 @@ with the longest match is adopted so `.tar.gz' is chosen over
                                              'wdired-change-to-wdired-mode
                                            'dired-do-rename))
   (define-key dired-mode-map "u"         'diredfd-do-unpack)
-  (define-key dired-mode-map "x"         'diredfd-do-flagged-delete-or-shell-command)
+  (define-key dired-mode-map "x"         'diredfd-do-flagged-delete-or-execute)
 
   (set-face-attribute 'dired-directory
                       nil :inherit font-lock-function-name-face :foreground "cyan")
