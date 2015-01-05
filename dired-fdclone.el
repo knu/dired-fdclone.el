@@ -455,7 +455,7 @@ with the longest match is adopted so `.tar.gz' is chosen over
                        (or (file-directory-p file)
                            (diredfd-archive-command-for-file file))))))
          (archive (expand-file-name (car parsed)))
-         (async (cdr parsed)))
+         (async (cadr parsed)))
     (diredfd-pack files archive async)))
 
 ;;;###autoload
@@ -500,7 +500,7 @@ with the longest match is adopted so `.tar.gz' is chosen over
                    directory default nil nil
                    #'file-directory-p)))
          (directory (expand-file-name (car parsed)))
-         (async (cdr parsed)))
+         (async (cadr parsed)))
     (or (file-directory-p directory)
         (if (y-or-n-p (format "Directory %s does not exist; create? " directory))
             (make-directory directory t)
