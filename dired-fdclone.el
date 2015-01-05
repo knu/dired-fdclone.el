@@ -221,7 +221,9 @@ If ARG is given, mark all files including directories."
               (return-to-caller-buffer
                (lambda () (interactive)
                  (kill-buffer (current-buffer))
-                 (switch-to-buffer ,caller-buffer-name))))
+                 (switch-to-buffer ,caller-buffer-name)
+                 (and (eq major-mode 'dired-mode)
+                      (revert-buffer)))))
           (term-sentinel proc msg)
           (when (buffer-live-p buffer)
             (with-current-buffer buffer
