@@ -478,7 +478,7 @@ with the longest match is adopted so `.tar.gz' is chosen over
                    " ")))
     (if async
         (async-shell-command command)
-      (shell-command command))))
+      (diredfd-do-shell-command command))))
 
 ;;;###autoload
 (defun diredfd-do-unpack (&optional arg)
@@ -530,7 +530,7 @@ with the longest match is adopted so `.tar.gz' is chosen over
                     " "))))
     (if async
         (async-shell-command command)
-      (shell-command command))))
+      (diredfd-do-shell-command command))))
 
 (defun diredfd-sort-lines (reverse beg end)
   (interactive "P\nr")
