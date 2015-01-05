@@ -52,6 +52,7 @@
 ;; * diredfd-enter-root-directory
 ;; * diredfd-do-pack
 ;; * diredfd-do-unpack
+;; * diredfd-help
 ;;
 ;; Run the following line to enable all FDclone mimicking settings for
 ;; dired.
@@ -602,6 +603,7 @@ with the longest match is adopted so `.tar.gz' is chosen over
 (defun diredfd-dired-after-readin-setup ()
   (if diredfd-sort-by-type (diredfd-sort)))
 
+;;;###autoload
 (defun diredfd-help ()
   "Show the help window."
   (interactive)
