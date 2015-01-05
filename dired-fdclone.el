@@ -29,7 +29,6 @@
 ;; URL: https://github.com/knu/dired-fdclone.el
 ;; Created: 25 Dec 2014
 ;; Version: 1.1
-;; Package-Requires: ((helm-fns+ "0"))
 ;; Keywords: unix, directories, dired
 
 ;;; Commentary:
@@ -64,7 +63,6 @@
 
 (require 'dired-x)
 (require 'dired-aux)
-(require 'help-fns+)
 (require 'term)
 
 (eval-when-compile
@@ -607,7 +605,12 @@ with the longest match is adopted so `.tar.gz' is chosen over
 (defun diredfd-help ()
   "Show the help window."
   (interactive)
-  (describe-keymap 'dired-mode-map))
+  (describe-bindings)
+  (with-current-buffer (help-buffer)
+    (goto-char (point-min))
+    (re-search-forward "^Major Mode Bindings:$")
+    (beginning-of-line)
+    (recenter 0)))
 
 ;;;###autoload
 (defun dired-fdclone ()
