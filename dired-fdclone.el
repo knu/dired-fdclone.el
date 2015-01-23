@@ -192,52 +192,132 @@ If ARG is given, mark all files including directories."
     (if pos (goto-char pos)
       (error "Filename not found: %s" filename))))
 
+(defun diredfd-expand-command-tmpl (command-tmpl &optional current-file marked-file)
+  (let* ((current-file (or current-file
+                           (dired-get-filename nil t)))
+         (arg (and current-prefix-arg
+                   (prefix-numeric-value current-prefix-arg)))
+         (marked-files (dired-get-marked-files t arg)))
+    (let ((value
+           (catch 'macro
+             (let ((command
+                    (replace-regexp-in-string
+                     "%\\([%PC]\\|X\\(M\\|TA?\\)?\\|M\\|TA?\\)"
+                     (lambda (match)
+                       (cond ((string= match "%%")
+                              "%")
+                             ((string= match "%P")
+                              (shell-quote-argument default-directory))
+                             ((string= match "%C")
+                              (shell-quote-argument
+                               (file-relative-name current-file)))
+                             ((string= match "%X")
+                              (shell-quote-argument
+                               (file-name-sans-extension
+                                (file-relative-name current-file))))
+                             ((string-match-p "M" match 1)
+                              (if marked-file
+                                  (shell-quote-argument
+                                   (let* ((file (file-relative-name marked-file)))
+                                     (if (string-match-p "X" match 1)
+                                         (file-name-sans-extension file)
+                                       file)))
+                                (throw 'macro 'mark)))
+                             ((string-match-p "T" match 1)
+                              (mapconcat
+                               `(lambda (file)
+                                  (shell-quote-argument
+                                   (let ((file (file-relative-name file)))
+                                     ,(if (string-match-p "X" match 1)
+                                          '(file-name-sans-extension file)
+                                        'file))))
+                               marked-files
+                               " "))
+                             (t match)))
+                     command-tmpl t t)))
+               (list command)))))
+      (cond ((eq value 'mark)
+             (loop for marked-file in marked-files
+                   nconc (diredfd-expand-command-tmpl command-tmpl current-file marked-file)))
+            (t value)))))
+
+(defun diredfd--shell-commands (caller-buffer-name shell buffer-name commands)
+  (if commands
+      (let* ((command (car commands))
+             (args (if (string= command "")
+                       nil
+                     (list "-c" command)))
+             (buffer
+              (apply 'term-ansi-make-term
+                     buffer-name
+                     shell nil args)))
+        (set-process-sentinel
+         (get-buffer-process buffer)
+         `(lambda (proc msg)
+            (let ((commands (list ,@(cdr commands))))
+              (if commands
+                  (diredfd--shell-commands ,caller-buffer-name ,shell ,buffer-name commands)
+                (let ((buffer (process-buffer proc))
+                      (return-to-caller-buffer
+                       (lambda () (interactive)
+                         (kill-buffer (current-buffer))
+                         (switch-to-buffer ,caller-buffer-name)
+                         (and (eq major-mode 'dired-mode)
+                              (revert-buffer)))))
+                  (term-sentinel proc msg)
+                  (when (buffer-live-p buffer)
+                    (with-current-buffer buffer
+                      (local-set-key "q" return-to-caller-buffer)
+                      (local-set-key " " return-to-caller-buffer)
+                      (local-set-key (kbd "RET") return-to-caller-buffer)
+                      (let ((buffer-read-only))
+                        (insert "Hit SPC/RET/q to return...")))))))))
+        (switch-to-buffer buffer))))
+
+(defun diredfd-shell-commands (commands)
+  (let ((caller-buffer-name (buffer-name))
+        (shell (or explicit-shell-file-name
+                   (getenv "ESHELL")
+                   (getenv "SHELL")
+                   "/bin/sh"))
+        (buffer-name (generate-new-buffer-name
+                      (format "*%s - %s*"
+                              "dired-shell"
+                              default-directory))))
+    (diredfd--shell-commands caller-buffer-name shell buffer-name commands)))
+
+;;;###autoload
 (defun diredfd-do-shell-command (command)
-  "Open an ANSI terminal and run a COMMAND in it."
+  "Open an ANSI terminal and run a COMMAND in it.
+
+In COMMAND, the % sign is a meta-character and the following
+macros are available.  All path names expanded will be escaped
+with `shell-quote-argument'.
+
+%P  -- Expands to the current directory name in full path.
+%C  -- Expands to the name of the file at point.
+%T  -- Expands to the names of the marked files, separated by
+       spaces.
+%M  -- Expands to the name of each marked file, repeating the
+       command once for every marked file.
+%X  -- Expands to the name of the file at point without the last
+       suffix. (cf. `file-name-sans-extension')
+%XM -- Expands to the name of each marked file without the last
+       suffix, repeating the command once for every marked file.
+%XT -- Expands to the names of the marked files without their
+       last suffix, separated by spaces.
+%%  -- Expands to a literal %."
   (interactive
    (list (if current-prefix-arg ""
            (read-shell-command "Shell command: "))))
-  (let* ((caller-buffer-name (buffer-name))
-         (shell (or explicit-shell-file-name
-                    (getenv "ESHELL")
-                    (getenv "SHELL")
-                    "/bin/sh"))
-         (args (if (string= command "") nil
-                 (list "-c" command)))
-         (buffer (get-buffer
-                  (apply 'term-ansi-make-term
-                         (generate-new-buffer-name
-                          (format "*%s - %s*"
-                                  "dired-shell"
-                                  default-directory))
-                         shell nil args))))
-    (with-current-buffer buffer
-      (term-mode)
-      (term-char-mode))
-    (set-process-sentinel
-     (get-buffer-process buffer)
-     `(lambda (proc msg)
-        (let ((buffer (process-buffer proc))
-              (return-to-caller-buffer
-               (lambda () (interactive)
-                 (kill-buffer (current-buffer))
-                 (switch-to-buffer ,caller-buffer-name)
-                 (and (eq major-mode 'dired-mode)
-                      (revert-buffer)))))
-          (term-sentinel proc msg)
-          (when (buffer-live-p buffer)
-            (with-current-buffer buffer
-              (local-set-key "q" return-to-caller-buffer)
-              (local-set-key " " return-to-caller-buffer)
-              (local-set-key (kbd "RET") return-to-caller-buffer)
-              (let ((buffer-read-only))
-                (insert "Hit SPC/RET/q to return...")))))))
-    (switch-to-buffer buffer)))
+  (diredfd-shell-commands (diredfd-expand-command-tmpl command)))
 
 ;;;###autoload
 (defun diredfd-do-flagged-delete-or-execute (&optional arg)
   "Run `dired-do-flagged-delete' if any file is flagged for deletion.
-If none is, run a shell command with all marked (or next ARG) files or the current file."
+If none is, run a shell command with all marked (or next ARG) files or the current file.
+
+For a list of macros usable in a shell command line, see `diredfd-do-shell-command'."
   (interactive "P")
   (if (save-excursion
         (let* ((dired-marker-char dired-del-marker)
@@ -246,26 +326,14 @@ If none is, run a shell command with all marked (or next ARG) files or the curre
           (goto-char (point-min))
           (re-search-forward regexp nil t)))
       (dired-do-flagged-delete)
-    (let* ((arg (and arg (prefix-numeric-value arg)))
-           (files (dired-get-marked-files t arg nil t))
-           (file (or (car files)
+    (let* ((file (or (dired-get-filename nil t)
                      (error "No file to execute")))
+           (rel (file-relative-name file))
            (initial-contents
-            (if (and (null (cdr files))
-                     (file-regular-p file)
+            (if (and (file-regular-p file)
                      (file-executable-p file))
-                (concat (file-name-as-directory ".")
-                        (file-relative-name file)
-                        " ")
-              (cons
-               (concat " "
-                       (mapconcat
-                        (lambda (file)
-                          (shell-quote-argument
-                           (file-relative-name file)))
-                        (if (eq file t) (cdr files) files)
-                        " "))
-               1)))
+                (concat (file-name-as-directory ".") rel " ")
+              (cons (concat " " rel) 1)))
            (command (read-shell-command "Shell command: "
                                         initial-contents)))
       (diredfd-do-shell-command command))))
