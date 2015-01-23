@@ -28,7 +28,7 @@
 ;; Author: Akinori MUSHA <knu@iDaemons.org>
 ;; URL: https://github.com/knu/dired-fdclone.el
 ;; Created: 25 Dec 2014
-;; Version: 1.1.1
+;; Version: 1.2
 ;; Keywords: unix, directories, dired
 
 ;;; Commentary:
