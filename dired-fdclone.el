@@ -73,6 +73,7 @@
   "Dired functions and settings to mimic FDclone."
   :group 'dired)
 
+;;;###autoload
 (defun diredfd-goto-top ()
   "Go to the top line of the current file list."
   (interactive)
@@ -84,6 +85,7 @@
       (dired-previous-line 1))
     (dired-next-line 1)))
 
+;;;###autoload
 (defun diredfd-goto-bottom ()
   "Go to the bottom line of the current file list."
   (interactive)
