@@ -73,6 +73,54 @@
   "Dired functions and settings to mimic FDclone."
   :group 'dired)
 
+(defcustom diredfd-nav-width 25
+  "Default window width of `diredfd-nav-mode'."
+  :type 'integer
+  :group 'dired-fdclone)
+
+;;;###autoload
+(define-minor-mode diredfd-nav-mode
+  "Toggle nav mode."
+  :group 'dired-fdclone
+  (unless (derived-mode-p 'dired-mode)
+    (error "Not a Dired buffer"))
+  (if diredfd-nav-mode
+      (dired-hide-details-mode 1)
+    (dired-hide-details-mode 0)))
+
+(defun diredfd-nav-set-window-width (&optional n)
+  (let ((window (window-normalize-window nil))
+        (n (max (or n diredfd-nav-width)
+                window-min-width)))
+    (window-resize window (- n (window-width)) t)))
+
+(defmacro diredfd-nav-other-window-do (&rest body)
+  `(if diredfd-nav-mode
+       (let ((split-height-threshold nil)
+             (split-width-threshold 0)
+             (dired-window (selected-window))
+             (width (window-width)))
+         (if (ignore-errors (windmove-right) t)
+             (progn
+               ;; delete the window to the right if any
+               (delete-window)
+               (select-window dired-window t))
+           (setq width nil))
+         (prog1
+             (progn ,@body)
+           (let ((window (selected-window)))
+             (select-window dired-window t)
+             (diredfd-nav-set-window-width width)
+             (select-window window t))))
+     ,@body))
+
+;;;###autoload
+(defun diredfd-find-file ()
+  "Visit the current file or directory."
+  (if diredfd-nav-mode
+      (diredfd-nav-other-window-do (dired-find-file-other-window))
+    (dired-find-file)))
+
 ;;;###autoload
 (defun diredfd-goto-top ()
   "Go to the top line of the current file list."
@@ -351,7 +399,7 @@ For a list of macros usable in a shell command line, see `diredfd-do-shell-comma
                (diredfd-enter-parent-directory)
              (diredfd-enter-directory file "..")))
           (t
-           (dired-find-file)))))
+           (diredfd-find-file)))))
 
 ;;;###autoload
 (defun diredfd-enter-directory (&optional directory filename)
@@ -360,7 +408,9 @@ For a list of macros usable in a shell command line, see `diredfd-do-shell-comma
                       "Go to directory: "
                       dired-directory nil t)))
   (set-buffer-modified-p nil)
-  (find-alternate-file directory)
+  (let ((nav diredfd-nav-mode))
+    (find-alternate-file directory)
+    (if nav (diredfd-nav-mode 1)))
   (if filename
       (diredfd-goto-filename filename)))
 
@@ -379,6 +429,15 @@ For a list of macros usable in a shell command line, see `diredfd-do-shell-comma
   (set-buffer-modified-p nil)
   (diredfd-enter-directory "/" "..")
   (dired-next-line 1))
+
+;;;###autoload
+(defun diredfd-view-file ()
+  "Visit the current file in view mode."
+  (interactive)
+  (let ((file (dired-get-file-for-visit)))
+    (if (file-directory-p file)
+        (dired-view-file)
+      (diredfd-nav-other-window-do (view-file-other-window file)))))
 
 (defcustom diredfd-archive-info-list
   '(["\\.tar\\'"
@@ -693,6 +752,7 @@ with the longest match is adopted so `.tar.gz' is chosen over
   (define-key dired-mode-map (kbd "DEL") 'diredfd-enter-parent-directory)
   (define-key dired-mode-map (kbd "RET") 'diredfd-enter)
   (define-key dired-mode-map " "         'diredfd-toggle-mark)
+  (define-key dired-mode-map "("         'diredfd-nav-mode)
   (define-key dired-mode-map "*"         'dired-mark-files-regexp)
   (define-key dired-mode-map "+"         'diredfd-mark-or-unmark-all)
   (define-key dired-mode-map "-"         'diredfd-toggle-all-marks)
@@ -716,6 +776,7 @@ with the longest match is adopted so `.tar.gz' is chosen over
                                              'wdired-change-to-wdired-mode
                                            'dired-do-rename))
   (define-key dired-mode-map "u"         'diredfd-do-unpack)
+  (define-key dired-mode-map "v"         'diredfd-view-file)
   (define-key dired-mode-map "x"         'diredfd-do-flagged-delete-or-execute)
 
   (set-face-attribute 'dired-directory
