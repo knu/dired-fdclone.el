@@ -412,11 +412,15 @@ For a list of macros usable in a shell command line, see `diredfd-do-shell-comma
   :group 'dired-fdclone)
 (make-variable-buffer-local 'dired-sort-key)
 
-(defcustom diredfd-sort-desc nil
-  "If non-nil, sort directory listings in descendant order."
-  :type 'boolean
+(defcustom diredfd-sort-direction 'asc
+  "If non-nil, sort directory listings in descending order."
+  :type '(choice (const :tag "Ascending" asc)
+                 (const :tag "Descending" desc))
   :group 'dired-fdclone)
-(make-variable-buffer-local 'diredfd-sort-desc)
+(make-variable-buffer-local 'diredfd-sort-direction)
+
+(defun diredfd-sort-desc-p ()
+  (eq diredfd-sort-direction 'desc))
 
 ;;;###autoload
 (defun diredfd-enter ()
@@ -440,9 +444,9 @@ For a list of macros usable in a shell command line, see `diredfd-do-shell-comma
   (set-buffer-modified-p nil)
   (let ((nav diredfd-nav-mode)
         (sort-key diredfd-sort-key)
-        (sort-desc diredfd-sort-desc))
+        (sort-direction diredfd-sort-direction))
     (find-alternate-file directory)
-    (diredfd-do-sort sort-key sort-desc)
+    (diredfd-do-sort sort-key sort-direction)
     (if nav (diredfd-nav-mode 1)))
   (if filename
       (diredfd-goto-filename filename)))
@@ -703,7 +707,7 @@ with the longest match is adopted so `.tar.gz' is chosen over
       (let ((inhibit-field-text-motion t))
 	(sort-subr nil 'forward-line 'end-of-line
                    #'diredfd-get-line-value nil
-                   (if diredfd-sort-desc
+                   (if (diredfd-sort-desc-p)
                        #'diredfd-line-value->
                      #'diredfd-line-value-<))))))
 
@@ -719,7 +723,7 @@ with the longest match is adopted so `.tar.gz' is chosen over
                                        ((file-exists-p filename) 3)
                                        (t 4)))
                                 (t 3)))))))
-    (cons (if diredfd-sort-desc (- type) type) ;; Always sort by type in ascending order
+    (cons (if (diredfd-sort-desc-p) (- type) type) ;; Always sort by type in ascending order
           (cond ((eq diredfd-sort-key 'filename)
                  (list basename))
                 ((eq diredfd-sort-key 'extension)
@@ -767,20 +771,22 @@ with the longest match is adopted so `.tar.gz' is chosen over
            "/")
           "?"))
 
-(defun diredfd-do-sort (&optional sort-key sort-desc)
+(defun diredfd-do-sort (&optional sort-key sort-direction)
   (interactive
    (list (cdr (assq (read-char-choice diredfd-sort-key-prompt
                                       diredfd-sort-key-chars)
                     diredfd-sort-key-alist))
-         (= ?d
-            (read-char-choice "Ascending or Descending?"
-                              '(?a ?d ?u))))) ;; FDclone's options are U and D
+         (if (char-equal
+              ?d
+              (read-char-choice "Ascending or Descending?"
+                                '(?a ?d ?u))) ;; FDclone's options are U and D
+             'desc 'asc)))
   (setq diredfd-sort-key (or sort-key diredfd-sort-key)
-        diredfd-sort-desc (or sort-desc diredfd-sort-desc))
+        diredfd-sort-direction (or sort-direction diredfd-sort-direction))
   (diredfd-sort)
   (message "Sorted by %s (%s)"
            diredfd-sort-key
-           (if diredfd-sort-desc "descending" "ascending")))
+           (if (diredfd-sort-desc-p) "descending" "ascending")))
 
 (defun diredfd-sort ()
   (save-excursion
