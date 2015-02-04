@@ -712,7 +712,7 @@ with the longest match is adopted so `.tar.gz' is chosen over
          (basename (file-name-nondirectory filename))
          (type (cond ((string= "." basename) 0)
                      ((string= ".." basename) 1)
-                     (t (let ((type (char-after (+ (line-beginning-position) 3))))
+                     (t (let ((type (char-after (+ (line-beginning-position) 2))))
                           (cond ((= type ?d) 2)
                                 ((= type ?l)
                                  (cond ((file-directory-p filename) 2)
