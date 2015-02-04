@@ -388,6 +388,33 @@ For a list of macros usable in a shell command line, see `diredfd-do-shell-comma
                                         initial-contents)))
       (diredfd-do-shell-command command))))
 
+(defconst diredfd-sort-key-alist
+  '((?n . filename)
+    (?e . extension)
+    (?s . size)
+    (?t . time)
+    (?l . length))
+  "List of sort keys.")
+
+(defconst diredfd-sort-key-chars (mapcar 'car diredfd-sort-key-alist))
+(defconst diredfd-sort-keys (mapcar 'cdr diredfd-sort-key-alist))
+
+(defcustom diredfd-sort-key 'filename
+  "Default sort key for directory listings."
+  :type `(choice :tag "Sort Key"
+                 ,@(mapcar (lambda (symbol)
+                             `(const :tag ,(capitalize (symbol-name symbol))
+                                     ,symbol))
+                           diredfd-sort-keys))
+  :group 'dired-fdclone)
+(make-variable-buffer-local 'dired-sort-key)
+
+(defcustom diredfd-sort-desc nil
+  "If non-nil, sort directory listings in descendant order."
+  :type 'boolean
+  :group 'dired-fdclone)
+(make-variable-buffer-local 'diredfd-sort-desc)
+
 ;;;###autoload
 (defun diredfd-enter ()
   "Visit the current file, or enter if it is a directory."
@@ -408,8 +435,11 @@ For a list of macros usable in a shell command line, see `diredfd-do-shell-comma
                       "Go to directory: "
                       dired-directory nil t)))
   (set-buffer-modified-p nil)
-  (let ((nav diredfd-nav-mode))
+  (let ((nav diredfd-nav-mode)
+        (sort-key diredfd-sort-key)
+        (sort-desc diredfd-sort-desc))
     (find-alternate-file directory)
+    (diredfd-do-sort sort-key sort-desc)
     (if nav (diredfd-nav-mode 1)))
   (if filename
       (diredfd-goto-filename filename)))
@@ -670,23 +700,34 @@ with the longest match is adopted so `.tar.gz' is chosen over
       (let ((inhibit-field-text-motion t))
 	(sort-subr nil 'forward-line 'end-of-line
                    #'diredfd-get-line-value nil
-                   #'diredfd-line-value-<)))))
+                   (if diredfd-sort-desc
+                       #'diredfd-line-value->
+                     #'diredfd-line-value-<))))))
 
 (defun diredfd-get-line-value ()
   (let* ((filename (dired-get-filename nil t))
-         (basename (file-name-nondirectory filename)))
-    (if (string-match-p "\\`\\.\\.?\\'" basename)
-        (list 0 basename)
-      (let ((type (char-after (+ (line-beginning-position) 2))))
-        (cond ((= type ?d)
-               (list 1 basename))
-              ((= type ?l)
-               (list (cond ((file-directory-p filename) 1)
-                           ((file-exists-p filename) 2)
-                           (t 3))
-                     basename))
-              (t
-               (list 2 basename)))))))
+         (basename (file-name-nondirectory filename))
+         (type (cond ((string= "." basename) 0)
+                     ((string= ".." basename) 1)
+                     (t (let ((type (char-after (+ (line-beginning-position) 3))))
+                          (cond ((= type ?d) 2)
+                                ((= type ?l)
+                                 (cond ((file-directory-p filename) 2)
+                                       ((file-exists-p filename) 3)
+                                       (t 4)))
+                                (t 3)))))))
+    (cons (if diredfd-sort-desc (- type) type) ;; Always sort by type in ascending order
+          (cond ((eq diredfd-sort-key 'filename)
+                 (list basename))
+                ((eq diredfd-sort-key 'extension)
+                 (reverse (split-string (file-name-nondirectory filename)
+                                        "\\.")))
+                ((eq diredfd-sort-key 'time)
+                 (append (nth 5 (file-attributes filename)) (list basename)))
+                ((eq diredfd-sort-key 'size)
+                 (list (nth 7 (file-attributes filename)) basename))
+                ((eq diredfd-sort-key 'length)
+                 (list (length filename) basename))))))
 
 (defun diredfd-line-value-< (l1 l2)
   (let ((v1 (car l1))
@@ -702,8 +743,43 @@ with the longest match is adopted so `.tar.gz' is chosen over
                (and (= v1 v2)
                     (diredfd-line-value-< (cdr l1) (cdr l2))))))))
 
+(defun diredfd-line-value-> (l1 l2)
+  (diredfd-line-value-< l2 l1))
+
+(defconst diredfd-sort-key-prompt
+  (concat "Sort by "
+          (mapconcat
+           (lambda (pair)
+             (let* ((cs (char-to-string (car pair)))
+                    (quoted (regexp-quote cs))
+                    (upper (upcase cs))
+                    (name (symbol-name (cdr pair))))
+               (if (string-match-p quoted name)
+                   (replace-regexp-in-string
+                    (concat quoted "\\(.*\\)\\'")
+                    (concat upper "\\1")
+                    name)
+                 (concat upper ":" name))))
+           diredfd-sort-key-alist
+           "/")
+          "?"))
+
+(defun diredfd-do-sort (&optional sort-key sort-desc)
+  (interactive
+   (list (cdr (assq (read-char-choice diredfd-sort-key-prompt
+                                      diredfd-sort-key-chars)
+                    diredfd-sort-key-alist))
+         (= ?d
+            (read-char-choice "Ascending or Descending?"
+                              '(?a ?d ?u))))) ;; FDclone's options are U and D
+  (setq diredfd-sort-key (or sort-key diredfd-sort-key)
+        diredfd-sort-desc (or sort-desc diredfd-sort-desc))
+  (diredfd-sort)
+  (message "Sorted by %s (%s)"
+           diredfd-sort-key
+           (if diredfd-sort-desc "descending" "ascending")))
+
 (defun diredfd-sort ()
-  "Sort dired listings with directories first."
   (save-excursion
     (let (buffer-read-only)
       (goto-char (point-min))
@@ -775,6 +851,7 @@ with the longest match is adopted so `.tar.gz' is chosen over
   (define-key dired-mode-map "r"         (if (fboundp 'wdired-change-to-wdired-mode)
                                              'wdired-change-to-wdired-mode
                                            'dired-do-rename))
+  (define-key dired-mode-map "s"         'diredfd-do-sort)
   (define-key dired-mode-map "u"         'diredfd-do-unpack)
   (define-key dired-mode-map "v"         'diredfd-view-file)
   (define-key dired-mode-map "x"         'diredfd-do-flagged-delete-or-execute)
