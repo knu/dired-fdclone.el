@@ -301,6 +301,9 @@ If ARG is given, mark all files including directories."
               (apply 'term-ansi-make-term
                      buffer-name
                      shell nil args)))
+        (with-current-buffer buffer
+          (term-mode)
+          (term-char-mode))
         (set-process-sentinel
          (get-buffer-process buffer)
          `(lambda (proc msg)
