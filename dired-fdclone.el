@@ -45,6 +45,7 @@
 ;; * diredfd-narrow-to-files-regexp
 ;; * diredfd-goto-filename
 ;; * diredfd-do-shell-command
+;; * diredfd-do-sort
 ;; * diredfd-do-flagged-delete-or-execute
 ;; * diredfd-enter
 ;; * diredfd-enter-directory
@@ -53,12 +54,23 @@
 ;; * diredfd-do-pack
 ;; * diredfd-do-unpack
 ;; * diredfd-help
+;; * diredfd-nav-mode
 ;;
-;; Run the following line to enable all FDclone mimicking settings for
-;; dired.
+;; The above functions are mostly usable stand-alone, but if you feel
+;; like "omakase", add the following line to your setup.
 ;;
 ;;   (dired-fdclone)
 ;;
+;; This makes dired:
+;;
+;; - color directories in cyan and symlinks in yellow like FDclone
+;; - sort directory listings in the directory-first style
+;; - alter key bindings to mimic FD/FDclone
+;; - not open a new buffer when you navigate to a new directory
+;; - run a shell command in ansi-term to allow launching interactive
+;;   commands
+;;
+;; Without spoiling dired's existing features.
 
 ;;; Code:
 
