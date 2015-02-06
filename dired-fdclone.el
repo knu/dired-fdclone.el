@@ -71,6 +71,10 @@
 ;;   commands
 ;;
 ;; Without spoiling dired's existing features.
+;;
+;; As usual, customization is available via:
+;;
+;;   M-x customize-group dired-fdclone RET
 
 ;;; Code:
 

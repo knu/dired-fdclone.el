@@ -57,6 +57,10 @@ This makes dired:
 
 Without spoiling dired's existing features.
 
+As usual, customization is available via:
+
+    M-x customize-group dired-fdclone RET
+
 ## Author
 
 Copyright (c) 2014-2015 Akinori MUSHA.
