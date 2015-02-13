@@ -69,6 +69,8 @@
 ;; - not open a new buffer when you navigate to a new directory
 ;; - run a shell command in ansi-term to allow launching interactive
 ;;   commands
+;; - automatically revert the buffer after running a command with
+;;   obvious side-effects
 ;;
 ;; Without spoiling dired's existing features.
 ;;
@@ -88,6 +90,75 @@
 (defgroup dired-fdclone nil
   "Dired functions and settings to mimic FDclone."
   :group 'dired)
+
+(defcustom diredfd-auto-revert t
+  "Automatically revert dired buffers after an interactive command is run."
+  :type 'boolean
+  :group 'dired-fdclone)
+
+(defun diredfd-auto-revert ()
+  (if diredfd-auto-revert
+      (revert-buffer)
+    (diredfd-sort)))
+
+(defconst diredfd-auto-revert-command-list
+  '(dired-do-flagged-delete
+    dired-create-directory))
+
+(defconst diredfd-auto-revert-redisplaying-command-list
+  '(dired-do-chmod
+    dired-do-chown
+    dired-do-chgrp
+    dired-do-touch))
+
+(defconst diredfd-auto-revert-maybe-async-command-list
+  '(dired-do-copy
+    dired-do-delete
+    dired-do-rename))
+
+(defmacro diredfd-advice-auto-revert (command)
+  `(defadvice ,command
+       (after diredfd activate)
+     (diredfd-auto-revert)))
+
+(defmacro diredfd-advice-auto-revert-if-sync (command)
+  `(defadvice ,command
+       (after diredfd activate)
+     (or (bound-and-true-p dired-async-be-async)
+         (diredfd-auto-revert))))
+
+;;;###autoload
+(defun diredfd-enable-auto-revert ()
+  "Enable auto-revert settings for dired.
+
+`dired-async' is supported."
+
+  (dolist (command diredfd-auto-revert-command-list)
+    (diredfd-advice-auto-revert command))
+
+  (defadvice dired-do-redisplay
+      (after diredfd activate)
+    ;; save and restore the point
+    (let ((filename (dired-get-filename nil t)))
+      (if (memq this-command diredfd-auto-revert-redisplaying-command-list)
+          (diredfd-auto-revert))
+      (diredfd-goto-filename filename)))
+
+  (dolist (command diredfd-auto-revert-maybe-async-command-list)
+    (diredfd-advice-auto-revert-if-sync command))
+
+  (defadvice dired-async-after-file-create
+      (around diredfd activate)
+    (let ((revert (and
+                   diredfd-auto-revert
+                   (bound-and-true-p dired-async-mode)
+                   dired-async-operation)))
+      ad-do-it
+      (if revert
+          (dolist (buffer (buffer-list))
+            (with-current-buffer buffer
+              (if (eq major-mode 'dired-mode)
+                  (revert-buffer))))))))
 
 (defcustom diredfd-nav-width 25
   "Default window width of `diredfd-nav-mode'."
@@ -462,6 +533,7 @@ For a list of macros usable in a shell command line, see `diredfd-do-shell-comma
         (sort-key diredfd-sort-key)
         (sort-direction diredfd-sort-direction))
     (find-alternate-file directory)
+    (revert-buffer)
     (diredfd-do-sort sort-key sort-direction)
     (if nav (diredfd-nav-mode 1)))
   (if filename
@@ -887,6 +959,8 @@ with the longest match is adopted so `.tar.gz' is chosen over
                       nil :inherit font-lock-keyword-face :foreground "yellow")
 
   (setq dired-deletion-confirmer 'y-or-n-p)
+
+  (diredfd-enable-auto-revert)
 
   (add-hook 'dired-mode-hook 'diredfd-dired-mode-setup)
   (add-hook 'dired-after-readin-hook 'diredfd-dired-after-readin-setup))

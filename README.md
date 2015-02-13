@@ -54,6 +54,8 @@ This makes dired:
 - not open a new buffer when you navigate to a new directory
 - run a shell command in ansi-term to allow launching interactive
   commands
+- automatically revert the buffer after running a command with obvious
+  side-effects
 
 Without spoiling dired's existing features.
 
