@@ -204,9 +204,19 @@
 ;;;###autoload
 (defun diredfd-find-file ()
   "Visit the current file or directory."
-  (if diredfd-nav-mode
-      (diredfd-nav-other-window-do (dired-find-file-other-window))
-    (dired-find-file)))
+  (cond (diredfd-nav-mode
+         (diredfd-nav-other-window-do (dired-find-file-other-window))
+         (add-hook 'kill-buffer-hook 'diredfd-nav-delete-window t t))
+        (t (dired-find-file))))
+
+(defun diredfd-nav-delete-window ()
+    (when (save-excursion
+            (ignore-errors
+              (windmove-left)
+              (and
+               (eq major-mode 'dired-mode)
+               diredfd-nav-mode)))
+      (delete-window)))
 
 ;;;###autoload
 (defun diredfd-goto-top ()
