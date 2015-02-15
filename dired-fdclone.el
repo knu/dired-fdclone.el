@@ -28,7 +28,7 @@
 ;; Author: Akinori MUSHA <knu@iDaemons.org>
 ;; URL: https://github.com/knu/dired-fdclone.el
 ;; Created: 25 Dec 2014
-;; Version: 1.2
+;; Version: 1.5
 ;; Keywords: unix, directories, dired
 
 ;;; Commentary:
@@ -45,6 +45,7 @@
 ;; * diredfd-narrow-to-files-regexp
 ;; * diredfd-goto-filename
 ;; * diredfd-do-shell-command
+;; * diredfd-do-sort
 ;; * diredfd-do-flagged-delete-or-execute
 ;; * diredfd-enter
 ;; * diredfd-enter-directory
@@ -53,12 +54,29 @@
 ;; * diredfd-do-pack
 ;; * diredfd-do-unpack
 ;; * diredfd-help
+;; * diredfd-nav-mode
 ;;
-;; Run the following line to enable all FDclone mimicking settings for
-;; dired.
+;; The above functions are mostly usable stand-alone, but if you feel
+;; like "omakase", add the following line to your setup.
 ;;
 ;;   (dired-fdclone)
 ;;
+;; This makes dired:
+;;
+;; - color directories in cyan and symlinks in yellow like FDclone
+;; - sort directory listings in the directory-first style
+;; - alter key bindings to mimic FD/FDclone
+;; - not open a new buffer when you navigate to a new directory
+;; - run a shell command in ansi-term to allow launching interactive
+;;   commands
+;; - automatically revert the buffer after running a command with
+;;   obvious side-effects
+;;
+;; Without spoiling dired's existing features.
+;;
+;; As usual, customization is available via:
+;;
+;;   M-x customize-group dired-fdclone RET
 
 ;;; Code:
 
@@ -73,6 +91,124 @@
   "Dired functions and settings to mimic FDclone."
   :group 'dired)
 
+(defcustom diredfd-auto-revert t
+  "Automatically revert dired buffers after an interactive command is run."
+  :type 'boolean
+  :group 'dired-fdclone)
+
+(defun diredfd-auto-revert ()
+  (if diredfd-auto-revert
+      (revert-buffer)
+    (diredfd-sort)))
+
+(defconst diredfd-auto-revert-command-list
+  '(dired-do-flagged-delete
+    dired-create-directory))
+
+(defconst diredfd-auto-revert-redisplaying-command-list
+  '(dired-do-chmod
+    dired-do-chown
+    dired-do-chgrp
+    dired-do-touch))
+
+(defconst diredfd-auto-revert-maybe-async-command-list
+  '(dired-do-copy
+    dired-do-delete
+    dired-do-rename))
+
+(defmacro diredfd-advice-auto-revert (command)
+  `(defadvice ,command
+       (after diredfd activate)
+     (diredfd-auto-revert)))
+
+(defmacro diredfd-advice-auto-revert-if-sync (command)
+  `(defadvice ,command
+       (after diredfd activate)
+     (or (bound-and-true-p dired-async-be-async)
+         (diredfd-auto-revert))))
+
+;;;###autoload
+(defun diredfd-enable-auto-revert ()
+  "Enable auto-revert settings for dired.
+
+`dired-async' is supported."
+
+  (dolist (command diredfd-auto-revert-command-list)
+    (diredfd-advice-auto-revert command))
+
+  (defadvice dired-do-redisplay
+      (after diredfd activate)
+    ;; save and restore the point
+    (let ((filename (dired-get-filename nil t)))
+      (if (memq this-command diredfd-auto-revert-redisplaying-command-list)
+          (diredfd-auto-revert))
+      (diredfd-goto-filename filename)))
+
+  (dolist (command diredfd-auto-revert-maybe-async-command-list)
+    (diredfd-advice-auto-revert-if-sync command))
+
+  (defadvice dired-async-after-file-create
+      (around diredfd activate)
+    (let ((revert (and
+                   diredfd-auto-revert
+                   (bound-and-true-p dired-async-mode)
+                   dired-async-operation)))
+      ad-do-it
+      (if revert
+          (dolist (buffer (buffer-list))
+            (with-current-buffer buffer
+              (if (eq major-mode 'dired-mode)
+                  (revert-buffer))))))))
+
+(defcustom diredfd-nav-width 25
+  "Default window width of `diredfd-nav-mode'."
+  :type 'integer
+  :group 'dired-fdclone)
+
+;;;###autoload
+(define-minor-mode diredfd-nav-mode
+  "Toggle nav mode."
+  :group 'dired-fdclone
+  (unless (derived-mode-p 'dired-mode)
+    (error "Not a Dired buffer"))
+  (if diredfd-nav-mode
+      (dired-hide-details-mode 1)
+    (dired-hide-details-mode 0)))
+
+(defun diredfd-nav-set-window-width (&optional n)
+  (let ((window (window-normalize-window nil))
+        (n (max (or n diredfd-nav-width)
+                window-min-width)))
+    (window-resize window (- n (window-width)) t)))
+
+(defmacro diredfd-nav-other-window-do (&rest body)
+  `(if diredfd-nav-mode
+       (let ((split-height-threshold nil)
+             (split-width-threshold 0)
+             (dired-window (selected-window))
+             (width (window-width)))
+         (if (ignore-errors (windmove-right) t)
+             (progn
+               ;; delete the window to the right if any
+               (delete-window)
+               (select-window dired-window t))
+           (setq width nil))
+         (prog1
+             (progn ,@body)
+           (let ((window (selected-window)))
+             (select-window dired-window t)
+             (diredfd-nav-set-window-width width)
+             (select-window window t))))
+     ,@body))
+
+;;;###autoload
+(defun diredfd-find-file ()
+  "Visit the current file or directory."
+  (if diredfd-nav-mode
+      (diredfd-nav-other-window-do (dired-find-file-other-window))
+    (dired-find-file)))
+
+;;;###autoload
 (defun diredfd-goto-top ()
   "Go to the top line of the current file list."
   (interactive)
@@ -84,6 +220,7 @@
       (dired-previous-line 1))
     (dired-next-line 1)))
 
+;;;###autoload
 (defun diredfd-goto-bottom ()
   "Go to the bottom line of the current file list."
   (interactive)
@@ -251,6 +388,9 @@ If ARG is given, mark all files including directories."
               (apply 'term-ansi-make-term
                      buffer-name
                      shell nil args)))
+        (with-current-buffer buffer
+          (term-mode)
+          (term-char-mode))
         (set-process-sentinel
          (get-buffer-process buffer)
          `(lambda (proc msg)
@@ -338,6 +478,37 @@ For a list of macros usable in a shell command line, see `diredfd-do-shell-comma
                                         initial-contents)))
       (diredfd-do-shell-command command))))
 
+(defconst diredfd-sort-key-alist
+  '((?n . filename)
+    (?e . extension)
+    (?s . size)
+    (?t . time)
+    (?l . length))
+  "List of sort keys.")
+
+(defconst diredfd-sort-key-chars (mapcar 'car diredfd-sort-key-alist))
+(defconst diredfd-sort-keys (mapcar 'cdr diredfd-sort-key-alist))
+
+(defcustom diredfd-sort-key 'filename
+  "Default sort key for directory listings."
+  :type `(choice :tag "Sort Key"
+                 ,@(mapcar (lambda (symbol)
+                             `(const :tag ,(capitalize (symbol-name symbol))
+                                     ,symbol))
+                           diredfd-sort-keys))
+  :group 'dired-fdclone)
+(make-variable-buffer-local 'dired-sort-key)
+
+(defcustom diredfd-sort-direction 'asc
+  "If non-nil, sort directory listings in descending order."
+  :type '(choice (const :tag "Ascending" asc)
+                 (const :tag "Descending" desc))
+  :group 'dired-fdclone)
+(make-variable-buffer-local 'diredfd-sort-direction)
+
+(defun diredfd-sort-desc-p ()
+  (eq diredfd-sort-direction 'desc))
+
 ;;;###autoload
 (defun diredfd-enter ()
   "Visit the current file, or enter if it is a directory."
@@ -349,7 +520,7 @@ For a list of macros usable in a shell command line, see `diredfd-do-shell-comma
                (diredfd-enter-parent-directory)
              (diredfd-enter-directory file "..")))
           (t
-           (dired-find-file)))))
+           (diredfd-find-file)))))
 
 ;;;###autoload
 (defun diredfd-enter-directory (&optional directory filename)
@@ -358,7 +529,13 @@ For a list of macros usable in a shell command line, see `diredfd-do-shell-comma
                       "Go to directory: "
                       dired-directory nil t)))
   (set-buffer-modified-p nil)
-  (find-alternate-file directory)
+  (let ((nav diredfd-nav-mode)
+        (sort-key diredfd-sort-key)
+        (sort-direction diredfd-sort-direction))
+    (find-alternate-file directory)
+    (revert-buffer)
+    (diredfd-do-sort sort-key sort-direction)
+    (if nav (diredfd-nav-mode 1)))
   (if filename
       (diredfd-goto-filename filename)))
 
@@ -377,6 +554,15 @@ For a list of macros usable in a shell command line, see `diredfd-do-shell-comma
   (set-buffer-modified-p nil)
   (diredfd-enter-directory "/" "..")
   (dired-next-line 1))
+
+;;;###autoload
+(defun diredfd-view-file ()
+  "Visit the current file in view mode."
+  (interactive)
+  (let ((file (dired-get-file-for-visit)))
+    (if (file-directory-p file)
+        (dired-view-file)
+      (diredfd-nav-other-window-do (view-file-other-window file)))))
 
 (defcustom diredfd-archive-info-list
   '(["\\.tar\\'"
@@ -609,23 +795,34 @@ with the longest match is adopted so `.tar.gz' is chosen over
       (let ((inhibit-field-text-motion t))
 	(sort-subr nil 'forward-line 'end-of-line
                    #'diredfd-get-line-value nil
-                   #'diredfd-line-value-<)))))
+                   (if (diredfd-sort-desc-p)
+                       #'diredfd-line-value->
+                     #'diredfd-line-value-<))))))
 
 (defun diredfd-get-line-value ()
   (let* ((filename (dired-get-filename nil t))
-         (basename (file-name-nondirectory filename)))
-    (if (string-match-p "\\`\\.\\.?\\'" basename)
-        (list 0 basename)
-      (let ((type (char-after (+ (line-beginning-position) 2))))
-        (cond ((= type ?d)
-               (list 1 basename))
-              ((= type ?l)
-               (list (cond ((file-directory-p filename) 1)
-                           ((file-exists-p filename) 2)
-                           (t 3))
-                     basename))
-              (t
-               (list 2 basename)))))))
+         (basename (file-name-nondirectory filename))
+         (type (cond ((string= "." basename) 0)
+                     ((string= ".." basename) 1)
+                     (t (let ((type (char-after (+ (line-beginning-position) 2))))
+                          (cond ((= type ?d) 2)
+                                ((= type ?l)
+                                 (cond ((file-directory-p filename) 2)
+                                       ((file-exists-p filename) 3)
+                                       (t 4)))
+                                (t 3)))))))
+    (cons (if (diredfd-sort-desc-p) (- type) type) ;; Always sort by type in ascending order
+          (cond ((eq diredfd-sort-key 'filename)
+                 (list basename))
+                ((eq diredfd-sort-key 'extension)
+                 (reverse (split-string (file-name-nondirectory filename)
+                                        "\\.")))
+                ((eq diredfd-sort-key 'time)
+                 (append (nth 5 (file-attributes filename)) (list basename)))
+                ((eq diredfd-sort-key 'size)
+                 (list (nth 7 (file-attributes filename)) basename))
+                ((eq diredfd-sort-key 'length)
+                 (list (length filename) basename))))))
 
 (defun diredfd-line-value-< (l1 l2)
   (let ((v1 (car l1))
@@ -641,8 +838,45 @@ with the longest match is adopted so `.tar.gz' is chosen over
                (and (= v1 v2)
                     (diredfd-line-value-< (cdr l1) (cdr l2))))))))
 
+(defun diredfd-line-value-> (l1 l2)
+  (diredfd-line-value-< l2 l1))
+
+(defconst diredfd-sort-key-prompt
+  (concat "Sort by "
+          (mapconcat
+           (lambda (pair)
+             (let* ((cs (char-to-string (car pair)))
+                    (quoted (regexp-quote cs))
+                    (upper (upcase cs))
+                    (name (symbol-name (cdr pair))))
+               (if (string-match-p quoted name)
+                   (replace-regexp-in-string
+                    (concat quoted "\\(.*\\)\\'")
+                    (concat upper "\\1")
+                    name)
+                 (concat upper ":" name))))
+           diredfd-sort-key-alist
+           "/")
+          "?"))
+
+(defun diredfd-do-sort (&optional sort-key sort-direction)
+  (interactive
+   (list (cdr (assq (read-char-choice diredfd-sort-key-prompt
+                                      diredfd-sort-key-chars)
+                    diredfd-sort-key-alist))
+         (if (char-equal
+              ?d
+              (read-char-choice "Ascending or Descending?"
+                                '(?a ?d ?u))) ;; FDclone's options are U and D
+             'desc 'asc)))
+  (setq diredfd-sort-key (or sort-key diredfd-sort-key)
+        diredfd-sort-direction (or sort-direction diredfd-sort-direction))
+  (diredfd-sort)
+  (message "Sorted by %s (%s)"
+           diredfd-sort-key
+           (if (diredfd-sort-desc-p) "descending" "ascending")))
+
 (defun diredfd-sort ()
-  "Sort dired listings with directories first."
   (save-excursion
     (let (buffer-read-only)
       (goto-char (point-min))
@@ -691,6 +925,7 @@ with the longest match is adopted so `.tar.gz' is chosen over
   (define-key dired-mode-map (kbd "DEL") 'diredfd-enter-parent-directory)
   (define-key dired-mode-map (kbd "RET") 'diredfd-enter)
   (define-key dired-mode-map " "         'diredfd-toggle-mark)
+  (define-key dired-mode-map "("         'diredfd-nav-mode)
   (define-key dired-mode-map "*"         'dired-mark-files-regexp)
   (define-key dired-mode-map "+"         'diredfd-mark-or-unmark-all)
   (define-key dired-mode-map "-"         'diredfd-toggle-all-marks)
@@ -713,7 +948,9 @@ with the longest match is adopted so `.tar.gz' is chosen over
   (define-key dired-mode-map "r"         (if (fboundp 'wdired-change-to-wdired-mode)
                                              'wdired-change-to-wdired-mode
                                            'dired-do-rename))
+  (define-key dired-mode-map "s"         'diredfd-do-sort)
   (define-key dired-mode-map "u"         'diredfd-do-unpack)
+  (define-key dired-mode-map "v"         'diredfd-view-file)
   (define-key dired-mode-map "x"         'diredfd-do-flagged-delete-or-execute)
 
   (set-face-attribute 'dired-directory
@@ -722,6 +959,8 @@ with the longest match is adopted so `.tar.gz' is chosen over
                       nil :inherit font-lock-keyword-face :foreground "yellow")
 
   (setq dired-deletion-confirmer 'y-or-n-p)
+
+  (diredfd-enable-auto-revert)
 
   (add-hook 'dired-mode-hook 'diredfd-dired-mode-setup)
   (add-hook 'dired-after-readin-hook 'diredfd-dired-after-readin-setup))
