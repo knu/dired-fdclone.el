@@ -542,7 +542,14 @@ For a list of macros usable in a shell command line, see `diredfd-do-shell-comma
   (let ((nav diredfd-nav-mode)
         (sort-key diredfd-sort-key)
         (sort-direction diredfd-sort-direction))
-    (find-alternate-file directory)
+    (if (and server-buffer-clients
+             (loop for proc in server-buffer-clients
+                   thereis (and (memq proc server-clients)
+                                (eq (process-status proc) 'open))))
+        ;; Keep a directory buffer opened with emacsclient
+        (let ((find-file-run-dired t))
+          (find-file directory))
+      (find-alternate-file directory))
     (revert-buffer)
     (diredfd-do-sort sort-key sort-direction)
     (if nav (diredfd-nav-mode 1)))
