@@ -116,16 +116,23 @@
     dired-do-delete
     dired-do-rename))
 
-(defmacro diredfd-advice-auto-revert (command)
-  `(defadvice ,command
-       (after diredfd activate)
-     (diredfd-auto-revert)))
+(defmacro diredfd-add-after-advice (name &rest body)
+  `(progn
+     (ad-add-advice ,name
+                    '(diredfd
+                      nil t
+                      (advice . (lambda () ,@body)))
+                    'after 'last)
+     (ad-activate ,name)))
 
-(defmacro diredfd-advice-auto-revert-if-sync (command)
-  `(defadvice ,command
-       (after diredfd activate)
-     (or (bound-and-true-p dired-async-be-async)
-         (diredfd-auto-revert))))
+(defun diredfd-advice-auto-revert (command)
+  (diredfd-add-after-advice command
+                            (diredfd-auto-revert)))
+
+(defun diredfd-advice-auto-revert-if-sync (command)
+  (diredfd-add-after-advice command
+                            (or (bound-and-true-p dired-async-be-async)
+                                (diredfd-auto-revert))))
 
 ;;;###autoload
 (defun diredfd-enable-auto-revert ()
