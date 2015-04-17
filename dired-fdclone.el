@@ -486,11 +486,12 @@ For a list of macros usable in a shell command line, see `diredfd-do-shell-comma
     (let* ((file (or (dired-get-filename nil t)
                      (error "No file to execute")))
            (rel (file-relative-name file))
+           (qrel (shell-quote-argument rel))
            (initial-contents
             (if (and (file-regular-p file)
                      (file-executable-p file))
-                (concat (file-name-as-directory ".") rel " ")
-              (cons (concat " " rel) 1)))
+                (concat (file-name-as-directory ".") qrel " ")
+              (cons (concat " " qrel) 1)))
            (command (read-shell-command "Shell command: "
                                         initial-contents)))
       (diredfd-do-shell-command command))))
