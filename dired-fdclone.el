@@ -1,6 +1,6 @@
 ;;; dired-fdclone.el --- dired functions and settings to mimic FDclone
 ;;
-;; Copyright (c) 2014, 2015 Akinori MUSHA
+;; Copyright (c) 2014-2017 Akinori MUSHA
 ;;
 ;; All rights reserved.
 ;;
@@ -28,7 +28,7 @@
 ;; Author: Akinori MUSHA <knu@iDaemons.org>
 ;; URL: https://github.com/knu/dired-fdclone.el
 ;; Created: 25 Dec 2014
-;; Version: 1.5.2
+;; Version: 1.5.3
 ;; Keywords: unix, directories, dired
 
 ;;; Commentary:
@@ -158,8 +158,7 @@
       (around diredfd activate)
     (let ((revert (and
                    diredfd-auto-revert
-                   (bound-and-true-p dired-async-mode)
-                   dired-async-operation)))
+                   (bound-and-true-p dired-async-mode))))
       ad-do-it
       (if revert
           (dolist (buffer (buffer-list))
