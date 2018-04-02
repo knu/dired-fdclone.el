@@ -245,15 +245,18 @@
 
 ;;;###autoload
 (defun diredfd-goto-bottom ()
-  "Go to the bottom line of the current file list."
+  "Go to the bottom line of the current file list.\nIf the point is already at the bottom file, go to the end of the buffer."
   (interactive)
-  (while (and (not (eobp))
-              (dired-between-files))
-    (dired-next-line 1))
-  (unless (eobp)
-    (while (not (dired-between-files))
+  (let ((pos (point)))
+    (while (and (not (eobp))
+                (dired-between-files))
       (dired-next-line 1))
-    (dired-previous-line 1)))
+    (unless (eobp)
+      (while (not (dired-between-files))
+        (dired-next-line 1))
+      (dired-previous-line 1))
+    (if (= pos (point))
+        (end-of-buffer))))
 
 ;;;###autoload
 (defun diredfd-toggle-mark-here ()
