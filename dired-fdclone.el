@@ -966,6 +966,8 @@ with the longest match is adopted so `.tar.gz' is chosen over
   (define-key dired-mode-map "/"         'dired-do-search)
   (define-key dired-mode-map "<"         'diredfd-goto-top)
   (define-key dired-mode-map ">"         'diredfd-goto-bottom)
+  (define-key dired-mode-map [remap beginning-of-buffer] 'diredfd-goto-top)
+  (define-key dired-mode-map [remap end-of-buffer]       'diredfd-goto-bottom)
   (define-key dired-mode-map "?"         'diredfd-help)
   (define-key dired-mode-map "D"         'dired-flag-file-deletion)
   (define-key dired-mode-map "\\"        'diredfd-enter-root-directory)
