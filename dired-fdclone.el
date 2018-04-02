@@ -1,6 +1,6 @@
 ;;; dired-fdclone.el --- dired functions and settings to mimic FDclone
 ;;
-;; Copyright (c) 2014-2017 Akinori MUSHA
+;; Copyright (c) 2014-2018 Akinori MUSHA
 ;;
 ;; All rights reserved.
 ;;
