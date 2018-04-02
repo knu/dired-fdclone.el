@@ -226,15 +226,22 @@
 
 ;;;###autoload
 (defun diredfd-goto-top ()
-  "Go to the top line of the current file list."
+  "Go to the top line of the current file list after `..'.\nIf the point is already at the top file, go to the beginning of the buffer."
   (interactive)
-  (while (and (not (bobp))
-              (dired-between-files))
-    (dired-previous-line 1))
-  (unless (bobp)
-    (while (not (dired-between-files))
+  (let ((pos (point)))
+    (while (and (not (bobp))
+                (dired-between-files))
       (dired-previous-line 1))
-    (dired-next-line 1)))
+    (unless (bobp)
+      (while (not (dired-between-files))
+        (dired-previous-line 1))
+      (dired-next-line 1))
+    (while (let* ((file (dired-get-file-for-visit))
+                  (filename (file-name-nondirectory file)))
+             (string-match-p "\\`\\.\\.?\\'" filename))
+      (dired-next-line 1))
+    (if (= pos (point))
+        (beginning-of-buffer))))
 
 ;;;###autoload
 (defun diredfd-goto-bottom ()
