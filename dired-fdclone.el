@@ -28,7 +28,7 @@
 ;; Author: Akinori MUSHA <knu@iDaemons.org>
 ;; URL: https://github.com/knu/dired-fdclone.el
 ;; Created: 25 Dec 2014
-;; Version: 1.5.3
+;; Version: 1.5.4
 ;; Keywords: unix, directories, dired
 
 ;;; Commentary:
@@ -235,7 +235,7 @@
     (while (let* ((file (dired-get-file-for-visit))
                   (filename (file-name-nondirectory file)))
              (string-match-p "\\`\\.\\.?\\'" filename))
-      (forward-line 1))
+      (dired-next-line 1))
     (if (= pos (point))
         (beginning-of-buffer))))
 
@@ -247,6 +247,10 @@
     (end-of-buffer)
     (while (not (dired-move-to-filename))
       (forward-line -1))
+    (while (let* ((file (dired-get-file-for-visit))
+                  (filename (file-name-nondirectory file)))
+             (string-match-p "\\`\\.\\.?\\'" filename))
+      (dired-next-line 1))
     (if (= pos (point))
         (end-of-buffer))))
 
