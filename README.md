@@ -28,6 +28,7 @@ dired-fdclone.el provides the following interactive commands:
 * diredfd-enter-directory
 * diredfd-enter-parent-directory
 * diredfd-enter-root-directory
+* diredfd-follow-symlink
 * diredfd-do-pack
 * diredfd-do-unpack
 * diredfd-help

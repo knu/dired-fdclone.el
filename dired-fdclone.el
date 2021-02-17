@@ -51,6 +51,7 @@
 ;; * diredfd-enter-directory
 ;; * diredfd-enter-parent-directory
 ;; * diredfd-enter-root-directory
+;; * diredfd-follow-symlink
 ;; * diredfd-do-pack
 ;; * diredfd-do-unpack
 ;; * diredfd-help
@@ -586,6 +587,17 @@ For a list of macros usable in a shell command line, see `diredfd-do-shell-comma
   (dired-next-line 1))
 
 ;;;###autoload
+(defun diredfd-follow-symlink ()
+  "Follow the s parent directory."
+  (interactive)
+  (let* ((file (or (dired-get-filename nil t)
+                   (error "No file to follow")))
+         (truename (file-truename file))
+         (dirname (directory-file-name (file-name-directory truename)))
+         (filename (file-name-nondirectory truename)))
+    (diredfd-enter-directory dirname filename)))
+
+;;;###autoload
 (defun diredfd-view-file ()
   "Visit the current file in view mode."
   (interactive)
@@ -973,6 +985,7 @@ with the longest match is adopted so `.tar.gz' is chosen over
   (define-key dired-mode-map "f"         'diredfd-narrow-to-files-regexp)
   (define-key dired-mode-map "h"         'diredfd-do-shell-command)
   (define-key dired-mode-map "k"         'dired-create-directory)
+  (define-key dired-mode-map "J"         'diredfd-follow-symlink)
   (define-key dired-mode-map "l"         'diredfd-enter-directory)
   (define-key dired-mode-map "m"         'dired-do-rename)
   (define-key dired-mode-map "n"         'diredfd-narrow-to-marked-files)
