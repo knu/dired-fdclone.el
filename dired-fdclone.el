@@ -1,6 +1,6 @@
 ;;; dired-fdclone.el --- dired functions and settings to mimic FDclone
 ;;
-;; Copyright (c) 2014-2018 Akinori MUSHA
+;; Copyright (c) 2014-2021 Akinori MUSHA
 ;;
 ;; All rights reserved.
 ;;
@@ -28,7 +28,7 @@
 ;; Author: Akinori MUSHA <knu@iDaemons.org>
 ;; URL: https://github.com/knu/dired-fdclone.el
 ;; Created: 25 Dec 2014
-;; Version: 1.5.4
+;; Version: 1.5.5
 ;; Keywords: unix, directories, dired
 
 ;;; Commentary:
