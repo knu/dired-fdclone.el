@@ -51,6 +51,8 @@
 ;; * diredfd-enter-directory
 ;; * diredfd-enter-parent-directory
 ;; * diredfd-enter-root-directory
+;; * diredfd-history-backward
+;; * diredfd-history-forward
 ;; * diredfd-follow-symlink
 ;; * diredfd-do-pack
 ;; * diredfd-do-unpack
@@ -95,6 +97,14 @@
 (defcustom diredfd-auto-revert t
   "Automatically revert dired buffers after an interactive command is run."
   :type 'boolean
+  :group 'dired-fdclone)
+
+(defvar diredfd-enter-history nil
+  "Default variable for `diredfd-enter-history-variable'.")
+
+(defcustom diredfd-enter-history-variable 'diredfd-enter-history
+  "History list to use for diredfd-enter."
+  :type 'symbol
   :group 'dired-fdclone)
 
 (defun diredfd-auto-revert ()
@@ -564,6 +574,7 @@ For a list of macros usable in a shell command line, see `diredfd-do-shell-comma
         (let ((find-file-run-dired t))
           (find-file directory))
       (find-alternate-file directory))
+    (add-to-history diredfd-enter-history-variable directory nil t)
     (revert-buffer)
     (diredfd-do-sort sort-key sort-direction)
     (if nav (diredfd-nav-mode 1)))
@@ -585,6 +596,26 @@ For a list of macros usable in a shell command line, see `diredfd-do-shell-comma
   (set-buffer-modified-p nil)
   (diredfd-enter-directory "/" "..")
   (dired-next-line 1))
+
+;;###autoload
+(defun diredfd-history-backward ()
+  "Go to the previous directory in history"
+  (interactive)
+  (let* ((history (symbol-value diredfd-enter-history-variable))
+         (curr (car history))
+         (rest (cdr history)))
+    (set diredfd-enter-history-variable (nconc (cdr rest) (list curr)))
+    (diredfd-enter-directory (car rest))))
+
+;;###autoload
+(defun diredfd-history-forward ()
+  "Go to the next directory in history"
+  (interactive)
+  (let* ((history (symbol-value diredfd-enter-history-variable))
+         (last (last history))
+         (rest (butlast history)))
+    (set diredfd-enter-history-variable rest)
+    (diredfd-enter-directory (car last))))
 
 ;;;###autoload
 (defun diredfd-follow-symlink ()
@@ -974,6 +1005,8 @@ with the longest match is adopted so `.tar.gz' is chosen over
   (define-key dired-mode-map "/"         'dired-do-search)
   (define-key dired-mode-map "<"         'diredfd-goto-top)
   (define-key dired-mode-map ">"         'diredfd-goto-bottom)
+  (define-key dired-mode-map "["         'diredfd-history-backward)
+  (define-key dired-mode-map "]"         'diredfd-history-forward)
   (define-key dired-mode-map [remap beginning-of-buffer] 'diredfd-goto-top)
   (define-key dired-mode-map [remap end-of-buffer]       'diredfd-goto-bottom)
   (define-key dired-mode-map "?"         'diredfd-help)
