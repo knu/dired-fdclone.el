@@ -74,6 +74,8 @@
 ;;   commands
 ;; - automatically revert the buffer after running a command with
 ;;   obvious side-effects
+;; - automatically add visited files to `file-name-history`
+;;   (customizable)
 ;;
 ;; Without spoiling dired's existing features.
 ;;
@@ -106,6 +108,29 @@
   "History list to use for diredfd-enter."
   :type 'symbol
   :group 'dired-fdclone)
+
+(defcustom diredfd-add-visited-file-to-file-name-history-p t
+  "If non-nil, visited files will be added to `file-name-history'."
+  :type 'boolean
+  :group 'dired-fdclone)
+
+(defvar diredfd--add-to-file-name-history nil
+  "Internal flag to determine if the result of `dired-get-file-for-visit' should be added to `file-name-history'.")
+
+(defadvice dired-get-file-for-visit
+  (after diredfd activate)
+  (if diredfd--add-to-file-name-history
+      (add-to-history 'file-name-history ad-return-value)))
+
+(defadvice dired-find-file
+  (around diredfd activate)
+  (let ((dired--add-to-file-name-history t))
+    ad-do-it))
+
+(defadvice dired-find-file-other-window
+  (around diredfd activate)
+  (let ((dired--add-to-file-name-history t))
+    ad-do-it))
 
 (defun diredfd-auto-revert ()
   (if diredfd-auto-revert
