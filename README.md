@@ -70,7 +70,7 @@ As usual, customization is available via:
 
 ## Author
 
-Copyright (c) 2014-2021 Akinori MUSHA.
+Copyright (c) 2014-2022 Akinori MUSHA.
 
 Licensed under the 2-clause BSD license.  See `LICENSE.txt` for
 details.
