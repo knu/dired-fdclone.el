@@ -303,7 +303,8 @@
                  (point) (1+ (point)) char
                  (if (eq char ?\s)
                      dired-marker-char ?\s))))
-  (dired-move-to-filename))
+  (dired-move-to-filename)
+  (setq deactivate-mark nil))
 
 ;;;###autoload
 (defun diredfd-toggle-mark (&optional arg)
