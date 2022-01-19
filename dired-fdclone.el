@@ -90,7 +90,8 @@
 (require 'term)
 
 (eval-when-compile
-  (require 'cl))
+  (require 'cl)
+  (require 'subr-x))
 
 (defgroup dired-fdclone nil
   "Dired functions and settings to mimic FDclone."
@@ -306,34 +307,101 @@
   (dired-move-to-filename)
   (setq deactivate-mark nil))
 
+(defun diredfd--get-normalized-region ()
+  (if (region-active-p)
+      (let* ((from (min (mark) (point)))
+             (to (max (mark) (point))))
+        (save-excursion
+          (goto-char from)
+          (dired-move-to-filename)
+          (setq from (if (<= (point) from)
+                         (line-beginning-position)
+                       (line-beginning-position 2)))
+          (goto-char to)
+          (dired-move-to-filename)
+          (setq to (if (<= (point) to)
+                         (line-beginning-position)
+                       (line-beginning-position 2))))
+        (cons from to))))
+
+(defmacro diredfd--with-region-or-buffer (&rest body)
+  `(if-let* ((region (diredfd--get-normalized-region)))
+       (save-excursion
+         (save-restriction
+           (narrow-to-region (car region) (cdr region))
+           ,@body))
+     ,@body))
+
 ;;;###autoload
 (defun diredfd-toggle-mark (&optional arg)
-  "Toggle the mark on the current line and move to the next line.\nRepeat ARG times if given."
+  "Toggle the mark on the current line and move to the next line.
+Repeat ARG times if given.
+
+If region is active, mark all the files in the region without moving the point.
+If all files are already marked, unmark them instead."
   (interactive "p")
-  (loop for n from 1 to arg
-        until (eobp) do
-        (diredfd-toggle-mark-here)
-        (dired-next-line 1)))
+  (if-let* ((region (diredfd--get-normalized-region))
+            (from (car region))
+            (to (cdr region)))
+      (save-excursion
+        (save-restriction
+          (narrow-to-region from to)
+          (let (lines-marked lines-unmarked)
+            (dired-mark-if (progn (or (dired-between-files)
+                                      (looking-at-p dired-re-dot)
+                                      (let ((bol (line-beginning-position)))
+                                        (if (= (char-after bol) dired-marker-char)
+                                            (add-to-list 'lines-marked bol)
+                                          (add-to-list 'lines-unmarked bol))))
+                                  nil)
+                           "files")
+            (if lines-unmarked
+                (let ((inhibit-read-only t))
+                  (loop for bol in lines-unmarked
+                        do
+                        (goto-char bol)
+                        (delete-char 1)
+                        (insert dired-marker-char)))
+              (let ((inhibit-read-only t))
+                (loop for bol in lines-marked
+                      do
+                      (goto-char bol)
+                      (delete-char 1)
+                      (insert ?\s)))))))
+    (loop for n from 1 to arg
+          until (eobp) do
+          (diredfd-toggle-mark-here)
+          (dired-next-line 1)))
+  (setq deactivate-mark nil))
 
 ;;;###autoload
 (defun diredfd-toggle-all-marks ()
-  "Toggle all marks."
+  "Toggle all marks.
+
+If region is active, toggle the marks in the region and keep the point."
   (interactive)
-  (save-excursion
-    (goto-char (point-min))
-    (while (not (eobp))
-      (beginning-of-line)
-      (or (dired-between-files)
-          (looking-at-p dired-re-dot)
-          (diredfd-toggle-mark-here))
-      (dired-next-line 1))))
+  (if (region-active-p)
+      (diredfd-toggle-mark nil)
+    (save-excursion
+      (goto-char (point-min))
+      (while (not (eobp))
+        (beginning-of-line)
+        (or (dired-between-files)
+            (looking-at-p dired-re-dot)
+            (diredfd-toggle-mark-here))
+        (dired-next-line 1)))))
 
 ;;;###autoload
 (defun diredfd-mark-or-unmark-all (&optional arg)
   "Unmark all files if there is any file marked, or mark all non-directory files otherwise.
 If ARG is given, mark all files including directories."
   (interactive "P")
-  (if arg
+  (diredfd--with-region-or-buffer
+    (diredfd--mark-or-unmark-all arg))
+  (setq deactivate-mark nil))
+
+(defun diredfd--mark-or-unmark-all (include-directories)
+  (if include-directories
       (dired-mark-if (not (or (dired-between-files)
                               (looking-at-p dired-re-dot)))
                      "file")
