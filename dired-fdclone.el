@@ -41,6 +41,7 @@
 ;; * diredfd-toggle-mark
 ;; * diredfd-toggle-all-marks
 ;; * diredfd-mark-or-unmark-all
+;; * diredfd-unmark-all-marks
 ;; * diredfd-narrow-to-marked-files
 ;; * diredfd-narrow-to-files-regexp
 ;; * diredfd-goto-filename
@@ -390,6 +391,14 @@ If region is active, toggle the marks in the region and keep the point."
             (looking-at-p dired-re-dot)
             (diredfd-toggle-mark-here))
         (dired-next-line 1)))))
+
+;;;###autoload
+(defun diredfd-unmark-all-marks (&optional arg)
+  "Unmark all files in the Dired buffer or the active region."
+  (interactive "P")
+  (diredfd--with-region-or-buffer
+    (dired-unmark-all-marks))
+  (setq deactivate-mark nil))
 
 ;;;###autoload
 (defun diredfd-mark-or-unmark-all (&optional arg)
@@ -1105,6 +1114,7 @@ with the longest match is adopted so `.tar.gz' is chosen over
   (define-key dired-mode-map [remap end-of-buffer]       'diredfd-goto-bottom)
   (define-key dired-mode-map "?"         'diredfd-help)
   (define-key dired-mode-map "D"         'dired-flag-file-deletion)
+  (define-key dired-mode-map [remap dired-unmark-all-marks] 'diredfd-unmark-all-marks)
   (define-key dired-mode-map "\\"        'diredfd-enter-root-directory)
   (define-key dired-mode-map "a"         'dired-do-chmod)
   (define-key dired-mode-map "c"         'dired-do-copy)
