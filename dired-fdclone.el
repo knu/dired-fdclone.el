@@ -1,6 +1,6 @@
 ;;; dired-fdclone.el --- dired functions and settings to mimic FDclone
 ;;
-;; Copyright (c) 2014-2022 Akinori MUSHA
+;; Copyright (c) 2014-2023 Akinori MUSHA
 ;;
 ;; All rights reserved.
 ;;
@@ -56,6 +56,7 @@
 ;; * diredfd-history-forward
 ;; * diredfd-follow-symlink
 ;; * diredfd-do-pack
+;; * diredfd-do-rename
 ;; * diredfd-do-unpack
 ;; * diredfd-help
 ;; * diredfd-nav-mode
@@ -962,6 +963,20 @@ with the longest match is adopted so `.tar.gz' is chosen over
         (async-shell-command command)
       (diredfd-do-shell-command command))))
 
+;;;###autoload
+(defun diredfd-do-rename (&optional arg)
+  "Rename all marked (or next ARG) files, or invoke `wdired-mode'."
+  (interactive "P")
+  (cond
+   (arg
+    (dired-do-rename arg))
+   ((fboundp 'wdired-change-to-wdired-mode)
+    (wdired-change-to-wdired-mode)
+    (local-set-key (kbd "RET") 'wdired-finish-edit)
+    (message "Press RET to finish edit."))
+   (t
+    (dired-do-rename))))
+
 (defun diredfd-sort-lines (reverse beg end)
   (interactive "P\nr")
   (save-excursion
@@ -1127,9 +1142,7 @@ with the longest match is adopted so `.tar.gz' is chosen over
   (define-key dired-mode-map "m"         'dired-do-rename)
   (define-key dired-mode-map "n"         'diredfd-narrow-to-marked-files)
   (define-key dired-mode-map "p"         'diredfd-do-pack)
-  (define-key dired-mode-map "r"         (if (fboundp 'wdired-change-to-wdired-mode)
-                                             'wdired-change-to-wdired-mode
-                                           'dired-do-rename))
+  (define-key dired-mode-map "r"         'diredfd-do-rename)
   (define-key dired-mode-map "s"         'diredfd-do-sort)
   (define-key dired-mode-map "u"         'diredfd-do-unpack)
   (define-key dired-mode-map "v"         'diredfd-view-file)
