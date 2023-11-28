@@ -92,7 +92,7 @@
 (require 'term)
 
 (eval-when-compile
-  (require 'cl)
+  (require 'cl-lib)
   (require 'subr-x))
 
 (defgroup dired-fdclone nil
@@ -118,20 +118,23 @@
   :group 'dired-fdclone)
 
 (defvar diredfd--add-to-file-name-history nil
-  "Internal flag to determine if the result of `dired-get-file-for-visit' should be added to `file-name-history'.")
+  "Internal flag.
+
+If non-nil, the result of `dired-get-file-for-visit' is added to
+`file-name-history'.")
 
 (defadvice dired-get-file-for-visit
-  (after diredfd activate)
+    (after diredfd activate)
   (if diredfd--add-to-file-name-history
       (add-to-history 'file-name-history ad-return-value)))
 
 (defadvice dired-find-file
-  (around diredfd activate)
+    (around diredfd activate)
   (let ((dired--add-to-file-name-history t))
     ad-do-it))
 
 (defadvice dired-find-file-other-window
-  (around diredfd activate)
+    (around diredfd activate)
   (let ((dired--add-to-file-name-history t))
     ad-do-it))
 
@@ -255,20 +258,20 @@
         (t (dired-find-file))))
 
 (defun diredfd-nav-delete-window ()
-    (when (save-excursion
-            (ignore-errors
-              (windmove-left)
-              (and
-               (eq major-mode 'dired-mode)
-               diredfd-nav-mode)))
-      (delete-window)))
+  (when (save-excursion
+          (ignore-errors
+            (windmove-left)
+            (and
+             (eq major-mode 'dired-mode)
+             diredfd-nav-mode)))
+    (delete-window)))
 
 ;;;###autoload
 (defun diredfd-goto-top ()
   "Go to the top line of the current file list after `..'.\nIf the point is already at the top file, go to the beginning of the buffer."
   (interactive)
   (let ((pos (point)))
-    (beginning-of-buffer)
+    (goto-char (point-min))
     (while (not (dired-move-to-filename))
       (forward-line 1))
     (while (let* ((file (dired-get-file-for-visit))
@@ -276,14 +279,14 @@
              (string-match-p "\\`\\.\\.?\\'" filename))
       (dired-next-line 1))
     (if (= pos (point))
-        (beginning-of-buffer))))
+        (goto-char (point-min)))))
 
 ;;;###autoload
 (defun diredfd-goto-bottom ()
   "Go to the bottom line of the current file list.\nIf the point is already at the bottom file, go to the end of the buffer."
   (interactive)
   (let ((pos (point)))
-    (end-of-buffer)
+    (goto-char (point-max))
     (while (not (dired-move-to-filename))
       (forward-line -1))
     (while (let* ((file (dired-get-file-for-visit))
@@ -291,7 +294,7 @@
              (string-match-p "\\`\\.\\.?\\'" filename))
       (dired-next-line 1))
     (if (= pos (point))
-        (end-of-buffer))))
+        (goto-char (point-max)))))
 
 ;;;###autoload
 (defun diredfd-toggle-mark-here ()
@@ -322,8 +325,8 @@
           (goto-char to)
           (dired-move-to-filename)
           (setq to (if (<= (point) to)
-                         (line-beginning-position)
-                       (line-beginning-position 2))))
+                       (line-beginning-position)
+                     (line-beginning-position 2))))
         (cons from to))))
 
 (defmacro diredfd--with-region-or-buffer (&rest body)
@@ -359,21 +362,21 @@ If all files are already marked, unmark them instead."
                            "files")
             (if lines-unmarked
                 (let ((inhibit-read-only t))
-                  (loop for bol in lines-unmarked
-                        do
-                        (goto-char bol)
-                        (delete-char 1)
-                        (insert dired-marker-char)))
+                  (cl-loop for bol in lines-unmarked
+                           do
+                           (goto-char bol)
+                           (delete-char 1)
+                           (insert dired-marker-char)))
               (let ((inhibit-read-only t))
-                (loop for bol in lines-marked
-                      do
-                      (goto-char bol)
-                      (delete-char 1)
-                      (insert ?\s)))))))
-    (loop for n from 1 to arg
-          until (eobp) do
-          (diredfd-toggle-mark-here)
-          (dired-next-line 1)))
+                (cl-loop for bol in lines-marked
+                         do
+                         (goto-char bol)
+                         (delete-char 1)
+                         (insert ?\s)))))))
+    (cl-loop for n from 1 to arg
+             until (eobp) do
+             (diredfd-toggle-mark-here)
+             (dired-next-line 1)))
   (setq deactivate-mark nil))
 
 ;;;###autoload
@@ -394,20 +397,26 @@ If region is active, toggle the marks in the region and keep the point."
         (dired-next-line 1)))))
 
 ;;;###autoload
-(defun diredfd-unmark-all-marks (&optional arg)
-  "Unmark all files in the Dired buffer or the active region."
-  (interactive "P")
+(defun diredfd-unmark-all-marks ()
+  "Unmark all files in the Dired buffer.
+
+If region is active, unmark all files in the region."
+  (interactive)
   (diredfd--with-region-or-buffer
-    (dired-unmark-all-marks))
+   (dired-unmark-all-marks))
   (setq deactivate-mark nil))
 
 ;;;###autoload
 (defun diredfd-mark-or-unmark-all (&optional arg)
-  "Unmark all files if there is any file marked, or mark all non-directory files otherwise.
+  "Mark or unmark all in the Dired buffer.
+
+Unmark all files if there is any file marked, or mark all
+non-directory files otherwise.
+
 If ARG is given, mark all files including directories."
   (interactive "P")
   (diredfd--with-region-or-buffer
-    (diredfd--mark-or-unmark-all arg))
+   (diredfd--mark-or-unmark-all arg))
   (setq deactivate-mark nil))
 
 (defun diredfd--mark-or-unmark-all (include-directories)
@@ -440,7 +449,7 @@ If ARG is given, mark all files including directories."
 (defun diredfd-narrow-to-files-regexp (regexp)
   "Kill all lines except those matching REGEXP using `dired-kill-line'."
   (interactive
-   (list (dired-read-regexp "Narrow to files (regexp): ")))
+   (list (read-regexp "Narrow to files (regexp): ")))
   (save-excursion
     (goto-char (point-max))
     (while (not (bobp))
@@ -457,12 +466,12 @@ If ARG is given, mark all files including directories."
   (interactive "sGo to filename: ")
   (let ((pos (save-excursion
                (goto-char (point-min))
-               (loop until (eobp) do
-                     (dired-next-line 1)
-                     (and (dired-move-to-filename)
-                          (string= (file-name-nondirectory (dired-get-filename nil t))
-                                   filename)
-                          (return (point)))))))
+               (cl-loop until (eobp) do
+                        (dired-next-line 1)
+                        (and (dired-move-to-filename)
+                             (string= (file-name-nondirectory (dired-get-filename nil t))
+                                      filename)
+                             (cl-return (point)))))))
     (if pos (goto-char pos)
       (error "Filename not found: %s" filename))))
 
@@ -511,8 +520,8 @@ If ARG is given, mark all files including directories."
                      command-tmpl t t)))
                (list command)))))
       (cond ((eq value 'mark)
-             (loop for marked-file in marked-files
-                   nconc (diredfd-expand-command-tmpl command-tmpl current-file marked-file)))
+             (cl-loop for marked-file in marked-files
+                      nconc (diredfd-expand-command-tmpl command-tmpl current-file marked-file)))
             (t value)))))
 
 (defun diredfd--shell-commands (caller-buffer-name shell buffer-name commands)
@@ -592,9 +601,12 @@ with `shell-quote-argument'.
 ;;;###autoload
 (defun diredfd-do-flagged-delete-or-execute (&optional arg)
   "Run `dired-do-flagged-delete' if any file is flagged for deletion.
-If none is, run a shell command with all marked (or next ARG) files or the current file.
 
-For a list of macros usable in a shell command line, see `diredfd-do-shell-command'."
+If none is, run a shell command with all marked (or next ARG)
+files or the current file.
+
+For a list of macros usable in a shell command line, see
+`diredfd-do-shell-command'."
   (interactive "P")
   (if (save-excursion
         (let* ((dired-marker-char dired-del-marker)
@@ -671,9 +683,9 @@ For a list of macros usable in a shell command line, see `diredfd-do-shell-comma
         (sort-key diredfd-sort-key)
         (sort-direction diredfd-sort-direction))
     (if (and server-buffer-clients
-             (loop for proc in server-buffer-clients
-                   thereis (and (memq proc server-clients)
-                                (eq (process-status proc) 'open))))
+             (cl-loop for proc in server-buffer-clients
+                      thereis (and (memq proc server-clients)
+                                   (eq (process-status proc) 'open))))
         ;; Keep a directory buffer opened with emacsclient
         (let ((find-file-run-dired t))
           (find-file directory))
@@ -839,16 +851,16 @@ with the longest match is adopted so `.tar.gz' is chosen over
 (defun diredfd-archive-info-for-file (filename)
   (and (or (not (file-exists-p filename))
            (file-regular-p filename))
-       (loop for info in diredfd-archive-info-list
-             with longest = 0
-             with matched = nil
-             if (string-match (diredfd-archive-info-regexp info) filename)
-             do
-             (let ((len (- (match-end 0) (match-beginning 0))))
-               (if (< longest len)
-                   (setq longest len
-                         matched info)))
-             finally return matched)))
+       (cl-loop for info in diredfd-archive-info-list
+                with longest = 0
+                with matched = nil
+                if (string-match (diredfd-archive-info-regexp info) filename)
+                do
+                (let ((len (- (match-end 0) (match-beginning 0))))
+                  (if (< longest len)
+                      (setq longest len
+                            matched info)))
+                finally return matched)))
 
 (defun diredfd-archive-command-for-file (filename)
   (diredfd-archive-info-archive-command
@@ -1071,11 +1083,11 @@ with the longest match is adopted so `.tar.gz' is chosen over
   (save-excursion
     (let (buffer-read-only)
       (goto-char (point-min))
-      (while (loop while (dired-between-files)
-                   do (if (eobp)
-                          (return nil)
-                        (forward-line))
-                   finally return t)
+      (while (cl-loop while (dired-between-files)
+                      do (if (eobp)
+                             (cl-return nil)
+                           (forward-line))
+                      finally return t)
         (let ((beg (point)))
           (while (not (dired-between-files))
             (forward-line))
