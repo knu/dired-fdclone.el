@@ -1080,8 +1080,8 @@ with the longest match is adopted so `.tar.gz' is chosen over
            (if (diredfd-sort-desc-p) "descending" "ascending")))
 
 (defun diredfd-sort ()
-  (save-excursion
-    (let (buffer-read-only)
+  (let* ((current (or (dired-get-filename nil t) (concat (file-name-as-directory default-directory) "..")))
+         (buffer-read-only))
       (goto-char (point-min))
       (while (cl-loop while (dired-between-files)
                       do (if (eobp)
@@ -1091,8 +1091,9 @@ with the longest match is adopted so `.tar.gz' is chosen over
         (let ((beg (point)))
           (while (not (dired-between-files))
             (forward-line))
-          (diredfd-sort-lines nil beg (point)))))
-    (set-buffer-modified-p nil)))
+          (diredfd-sort-lines nil beg (point))))
+      (dired-goto-file current))
+  (set-buffer-modified-p nil))
 
 (defcustom diredfd-highlight-line t
   "If non-nil, the current line is highlighted like FDclone."
