@@ -71,7 +71,7 @@ As usual, customization is available via:
 
 ## Author
 
-Copyright (c) 2014-2023 Akinori MUSHA.
+Copyright (c) 2014-2024 Akinori MUSHA.
 
 Licensed under the 2-clause BSD license.  See `LICENSE.txt` for
 details.
