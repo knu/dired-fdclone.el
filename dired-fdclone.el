@@ -657,7 +657,7 @@ For a list of macros usable in a shell command line, see
   :group 'dired-fdclone)
 (make-variable-buffer-local 'diredfd-sort-direction)
 
-(defun diredfd-sort-desc-p ()
+(defsubst diredfd-sort-desc-p ()
   (eq diredfd-sort-direction 'desc))
 
 ;;;###autoload
@@ -999,9 +999,7 @@ with the longest match is adopted so `.tar.gz' is chosen over
       (let ((inhibit-field-text-motion t))
 	(sort-subr nil 'forward-line 'end-of-line
                    #'diredfd-get-line-value nil
-                   (if (diredfd-sort-desc-p)
-                       #'diredfd-line-value->
-                     #'diredfd-line-value-<))))))
+                   #'diredfd-line-value-<)))))
 
 (defun diredfd-get-line-value ()
   (let* ((filename (dired-get-filename nil t))
@@ -1015,35 +1013,37 @@ with the longest match is adopted so `.tar.gz' is chosen over
                                        ((file-exists-p filename) 3)
                                        (t 4)))
                                 (t 3)))))))
-    (cons (if (diredfd-sort-desc-p) (- type) type) ;; Always sort by type in ascending order
-          (cond ((eq diredfd-sort-key 'filename)
-                 (list basename))
-                ((eq diredfd-sort-key 'extension)
-                 (reverse (split-string (file-name-nondirectory filename)
-                                        "\\.")))
-                ((eq diredfd-sort-key 'time)
-                 (append (nth 5 (file-attributes filename)) (list basename)))
-                ((eq diredfd-sort-key 'size)
-                 (list (nth 7 (file-attributes filename)) basename))
-                ((eq diredfd-sort-key 'length)
-                 (list (length filename) basename))))))
+    `(,basename
+      ,(if (diredfd-sort-desc-p) (- type) type) ;; Always sort by type in ascending order
+      ,@(cond ((eq diredfd-sort-key 'filename)
+               (list basename t))
+              ((eq diredfd-sort-key 'extension)
+               (reverse (split-string (file-name-nondirectory filename)
+                                      "\\.")))
+              ((eq diredfd-sort-key 'time)
+               (nth 5 (file-attributes filename)))
+              ((eq diredfd-sort-key 'size)
+               (nth 7 (file-attributes filename)))
+              ((eq diredfd-sort-key 'length)
+               (list (length filename)))))))
 
-(defun diredfd-line-value-< (l1 l2)
-  (let ((v1 (car l1))
-        (v2 (car l2)))
-    (cond ((null v1) (not (null v2)))
-          ((null v2) nil)
-          ((stringp v1)
-           (or (string< v1 v2)
-               (and (string= v1 v2)
-                    (diredfd-line-value-< (cdr l1) (cdr l2)))))
-          (t
-           (or (< v1 v2)
-               (and (= v1 v2)
-                    (diredfd-line-value-< (cdr l1) (cdr l2))))))))
+(defun diredfd-line-value-< (v1 v2)
+  (cl-case (diredfd-line-value-keys-<=> (cdr v1) (cdr v2))
+    (< (not (diredfd-sort-desc-p)))
+    (> (diredfd-sort-desc-p))
+    (= (string< (car v1) (car v2)))))
 
-(defun diredfd-line-value-> (l1 l2)
-  (diredfd-line-value-< l2 l1))
+(defun diredfd-line-value-keys-<=> (ks1 ks2)
+  (let* ((k1 (car ks1))
+         (k2 (car ks2)))
+    (or (cond ((null k1) (if k2 '< '=))
+              ((null k2) '>)
+              ((stringp k1)
+               (cond ((string< k1 k2) '<)
+                     ((string> k1 k2) '>)))
+              ((< k1 k2) '<)
+              ((> k1 k2) '>))
+        (diredfd-line-value-keys-<=> (cdr ks1) (cdr ks2)))))
 
 (defconst diredfd-sort-key-prompt
   (concat "Sort by "
