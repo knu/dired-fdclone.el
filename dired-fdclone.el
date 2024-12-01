@@ -93,6 +93,7 @@
 
 (eval-when-compile
   (require 'cl-lib)
+  (require 'server)
   (require 'subr-x))
 
 (defgroup dired-fdclone nil
