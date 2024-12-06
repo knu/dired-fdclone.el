@@ -132,12 +132,12 @@ If non-nil, the result of `dired-get-file-for-visit' is added to
 
 (defadvice dired-find-file
     (around diredfd activate)
-  (let ((dired--add-to-file-name-history t))
+  (let ((diredfd--add-to-file-name-history t))
     ad-do-it))
 
 (defadvice dired-find-file-other-window
     (around diredfd activate)
-  (let ((dired--add-to-file-name-history t))
+  (let ((diredfd--add-to-file-name-history t))
     ad-do-it))
 
 (defun diredfd-auto-revert ()
