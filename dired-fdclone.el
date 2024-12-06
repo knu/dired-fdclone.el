@@ -1,4 +1,4 @@
-;;; dired-fdclone.el --- dired functions and settings to mimic FD/FDclone
+;;; dired-fdclone.el --- Dired functions and settings to mimic FD/FDclone
 ;;
 ;; Copyright (c) 2014-2024 Akinori MUSHA
 ;;
@@ -29,7 +29,12 @@
 ;; URL: https://github.com/knu/diredfd.el
 ;; Created: 25 Dec 2014
 ;; Version: 2.0.0
+;; Package-Requires: ((emacs "28.1"))
 ;; Keywords: unix, directories, dired
+
+;;; Commentary:
+;;
+;; This file only exists for backward compatibility.  Use diredfd.
 
 ;;; Code:
 

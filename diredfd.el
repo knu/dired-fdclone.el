@@ -1,4 +1,4 @@
-;;; diredfd.el --- dired functions and settings to mimic FD/FDclone
+;;; diredfd.el --- Dired functions and settings to mimic FD/FDclone
 ;;
 ;; Copyright (c) 2014-2024 Akinori MUSHA
 ;;
@@ -29,6 +29,7 @@
 ;; URL: https://github.com/knu/diredfd.el
 ;; Created: 25 Dec 2014
 ;; Version: 2.0.0
+;; Package-Requires: ((emacs "28.1"))
 ;; Keywords: unix, directories, dired
 
 ;;; Commentary:
@@ -67,7 +68,7 @@
 ;;
 ;;   (diredfd-enable)
 ;;
-;; This makes dired automatically turn on `diredfd-mode' in
+;; This makes Dired automatically turn on `diredfd-mode' in
 ;; `dired-mode' that provides the following features:
 ;;
 ;; - color directories in cyan and symlinks in yellow like FDclone
@@ -81,7 +82,7 @@
 ;; - automatically add visited files to `file-name-history`
 ;;   (customizable)
 ;;
-;; Without spoiling dired's existing features.
+;; Without spoiling Dired's existing features.
 ;;
 ;; As usual, customization is available via:
 ;;
@@ -108,7 +109,7 @@
   :group 'diredfd)
 
 (defcustom diredfd-auto-revert t
-  "Automatically revert dired buffers after an interactive command is run."
+  "Automatically revert Dired buffers after an interactive command is run."
   :type 'boolean
   :group 'diredfd)
 
@@ -116,7 +117,7 @@
   "Default variable for `diredfd-enter-history-variable'.")
 
 (defcustom diredfd-enter-history-variable 'diredfd-enter-history
-  "History list to use for diredfd-enter."
+  "History list to use for `diredfd-enter'."
   :type 'symbol
   :group 'diredfd)
 
@@ -132,15 +133,20 @@ If non-nil, the result of `dired-get-file-for-visit' is added to
 `file-name-history'.")
 
 (defun diredfd--ad-add-file-name-to-history (value)
+  "Internal advice function of diredfd.
+
+Adds a return VALUE to `file-name-history'."
   (if diredfd--add-to-file-name-history
       (add-to-history 'file-name-history value))
   value)
 
 (defun diredfd--ad-turn-on-add-to-file-name-history (orig-func)
+  "Internal advice function of diredfd to wrap ORIG-FUNC."
   (let ((diredfd--add-to-file-name-history t))
     (funcall orig-func)))
 
 (defun diredfd-auto-revert ()
+  "Revert the buffer or sort in `diredfd-mode'."
   (if diredfd-auto-revert
       (revert-buffer)
     (diredfd-sort)))
@@ -161,13 +167,16 @@ If non-nil, the result of `dired-get-file-for-visit' is added to
     dired-do-rename))
 
 (defun diredfd--ad-auto-revert (&rest args)
+  "Internal advice function of diredfd.  ARGS is ignored."
   (diredfd-auto-revert))
 
 (defun diredfd--ad-auto-revert-if-sync (&rest args)
+  "Internal advice function of diredfd.  ARGS is ignored."
   (or (bound-and-true-p dired-async-be-async)
                                 (diredfd-auto-revert)))
 
 (defun diredfd--ad-auto-revert-and-restore-point (&rest args)
+  "Internal advice function of diredfd.  ARGS is ignored."
   ;; save and restore the point
   (let ((filename (dired-get-filename nil t)))
     (if (memq this-command diredfd-auto-revert-redisplaying-command-list)
@@ -175,6 +184,9 @@ If non-nil, the result of `dired-get-file-for-visit' is added to
     (diredfd-goto-filename filename)))
 
 (defun diredfd--ad-auto-revert-async (orig-func &rest args)
+  "Internal advice function of diredfd.
+
+This wraps ORIG-FUNC called with ARGS."
   (let ((revert (and
                  diredfd-auto-revert
                  (bound-and-true-p dired-async-mode))))
@@ -201,12 +213,14 @@ If non-nil, the result of `dired-get-file-for-visit' is added to
     (dired-hide-details-mode 0)))
 
 (defun diredfd-nav-set-window-width (&optional n)
+  "Set the window width to N in `diredfd-nav-mode'."
   (let ((window (window-normalize-window nil))
         (n (max (or n diredfd-nav-width)
                 window-min-width)))
     (window-resize window (- n (window-width)) t)))
 
 (defmacro diredfd-nav-other-window-do (&rest body)
+  "Evaluate BODY in the other window in `diredfd-nav-mode'."
   `(if diredfd-nav-mode
        (let ((split-height-threshold nil)
              (split-width-threshold 0)
@@ -235,6 +249,7 @@ If non-nil, the result of `dired-get-file-for-visit' is added to
         (t (dired-find-file))))
 
 (defun diredfd-nav-delete-window ()
+  "Delete the window in `diredfd-nav-mode'."
   (when (save-excursion
           (ignore-errors
             (windmove-left)
@@ -290,6 +305,7 @@ If non-nil, the result of `dired-get-file-for-visit' is added to
   (setq deactivate-mark nil))
 
 (defun diredfd--get-normalized-region ()
+  "Get the normalized region in `dired-mode'."
   (if (region-active-p)
       (let* ((from (min (mark) (point)))
              (to (max (mark) (point))))
@@ -307,6 +323,7 @@ If non-nil, the result of `dired-get-file-for-visit' is added to
         (cons from to))))
 
 (defmacro diredfd--with-region-or-buffer (&rest body)
+  "Evaluate BODY in the normalized region in `dired-mode'."
   `(if-let* ((region (diredfd--get-normalized-region)))
        (save-excursion
          (save-restriction
@@ -397,6 +414,9 @@ If ARG is given, mark all files including directories."
   (setq deactivate-mark nil))
 
 (defun diredfd--mark-or-unmark-all (include-directories)
+  "The core implementation of `diredfd-mark-or-unmark-all'.
+
+INCLUDE-DIRECTORIES is non-nil if directories should be included."
   (if include-directories
       (dired-mark-if (not (or (dired-between-files)
                               (looking-at-p dired-re-dot)))
@@ -453,6 +473,9 @@ If ARG is given, mark all files including directories."
       (error "Filename not found: %s" filename))))
 
 (defun diredfd-expand-command-tmpl (command-tmpl &optional current-file marked-file)
+  "Expand the command template COMMAND-TMPL.
+
+CURRENT-FILE and MARKED-FILE are used in substitution."
   (let* ((current-file (or current-file
                            (dired-get-filename nil t)))
          (arg (and current-prefix-arg
@@ -502,6 +525,9 @@ If ARG is given, mark all files including directories."
             (t value)))))
 
 (defun diredfd--shell-commands (caller-buffer-name shell buffer-name commands)
+  "Run COMMANDS using SHELL in the buffer named BUFFER-NAME.
+
+CALLER-BUFFER-NAME is the name of the buffer that called this."
   (if commands
       (let* ((command (car commands))
              (args (if (string= command "")
@@ -538,6 +564,7 @@ If ARG is given, mark all files including directories."
         (switch-to-buffer buffer))))
 
 (defun diredfd-shell-commands (commands)
+  "Run COMMANDS in `dired-mode'."
   (let ((caller-buffer-name (buffer-name))
         (shell (or explicit-shell-file-name
                    (getenv "ESHELL")
@@ -634,6 +661,7 @@ For a list of macros usable in a shell command line, see
 (make-variable-buffer-local 'diredfd-sort-direction)
 
 (defsubst diredfd-sort-desc-p ()
+  "Test if the sort direction in `diredfd-mode' is descending."
   (eq diredfd-sort-direction 'desc))
 
 ;;;###autoload
@@ -694,7 +722,7 @@ For a list of macros usable in a shell command line, see
 
 ;;;###autoload
 (defun diredfd-history-backward ()
-  "Go to the previous directory in history"
+  "Go to the previous directory in history."
   (interactive)
   (let* ((history (symbol-value diredfd-enter-history-variable))
          (curr (car history))
@@ -704,7 +732,7 @@ For a list of macros usable in a shell command line, see
 
 ;;;###autoload
 (defun diredfd-history-forward ()
-  "Go to the next directory in history"
+  "Go to the next directory in history."
   (interactive)
   (let* ((history (symbol-value diredfd-enter-history-variable))
          (last (last history))
@@ -990,7 +1018,10 @@ with the longest match is adopted so `.tar.gz' is chosen over
    (t
     (dired-do-rename))))
 
-(defun diredfd-sort-lines (reverse beg end)
+(defun diredfd-sort-lines (beg end)
+  "Destructively sort lines in a region between BEG and END.
+
+This is an internal function for diredfd."
   (interactive "P\nr")
   (save-excursion
     (save-restriction
@@ -1002,6 +1033,7 @@ with the longest match is adopted so `.tar.gz' is chosen over
                    #'diredfd-line-value-<)))))
 
 (defun diredfd-get-line-value ()
+  "Get a list of file attributes used for sorting."
   (let* ((filename (dired-get-filename nil t))
          (basename (file-name-nondirectory filename))
          (type (cond ((string= "." basename) 0)
@@ -1028,12 +1060,14 @@ with the longest match is adopted so `.tar.gz' is chosen over
                (list (length filename)))))))
 
 (defun diredfd-line-value-< (v1 v2)
+  "Compare two sort key values V1 and V2."
   (cl-case (diredfd-line-value-keys-<=> (cdr v1) (cdr v2))
     (< (not (diredfd-sort-desc-p)))
     (> (diredfd-sort-desc-p))
     (= (string< (car v1) (car v2)))))
 
 (defun diredfd-line-value-keys-<=> (ks1 ks2)
+  "Compare two lists of sort keys KS1 and KS2."
   (let* ((k1 (car ks1))
          (k2 (car ks2)))
     (or (cond ((null k1) (if k2 '< '=))
@@ -1064,6 +1098,9 @@ with the longest match is adopted so `.tar.gz' is chosen over
           "?"))
 
 (defun diredfd-do-sort (&optional sort-key sort-direction)
+  "Sort files in `diredfd-mode'.
+
+SORT-KEY and SORT-DIRECTION are asked in interactive mode."
   (interactive
    (list (cdr (assq (read-char-choice diredfd-sort-key-prompt
                                       diredfd-sort-key-chars)
@@ -1092,7 +1129,7 @@ with the longest match is adopted so `.tar.gz' is chosen over
         (let ((beg (point)))
           (while (not (dired-between-files))
             (forward-line))
-          (diredfd-sort-lines nil beg (point))))
+          (diredfd-sort-lines beg (point))))
       (dired-goto-file current))
   (set-buffer-modified-p nil))
 
@@ -1124,7 +1161,7 @@ with the longest match is adopted so `.tar.gz' is chosen over
   "Non-nil if diredfd is enabled.")
 
 (defun diredfd--enable ()
-  "Enable the `diredfd' features."
+  "Enable the diredfd features."
   (unless (derived-mode-p 'dired-mode)
     (error "Not a Dired buffer"))
   (unless diredfd--enabled
@@ -1151,7 +1188,7 @@ with the longest match is adopted so `.tar.gz' is chosen over
   (and diredfd-highlight-line (hl-line-mode 1)))
 
 (defun diredfd--disable ()
-  "Disable the `diredfd' features."
+  "Disable the diredfd features."
   (unless (derived-mode-p 'dired-mode)
     (error "Not a Dired buffer"))
   (when diredfd--enabled
@@ -1238,12 +1275,12 @@ with the longest match is adopted so `.tar.gz' is chosen over
 
 ;;;###autoload
 (defun diredfd-enable ()
-  "Enable `diredfd' that makes `dired' look and feel like FD/FDclone."
+  "Enable diredfd that makes `dired' look and feel like FD/FDclone."
   (add-hook 'dired-mode-hook 'diredfd-mode))
 
 ;;;###autoload
 (defun diredfd-disable ()
-  "Disable `diredfd' that makes `dired' look and feel like FD/FDclone."
+  "Disable diredfd that makes `dired' look and feel like FD/FDclone."
   (remove-hook 'dired-mode-hook 'diredfd-mode))
 
 (provide 'diredfd)
