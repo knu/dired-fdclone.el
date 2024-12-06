@@ -714,7 +714,7 @@ For a list of macros usable in a shell command line, see
   (diredfd-enter-directory "/" "..")
   (dired-next-line 1))
 
-;;###autoload
+;;;###autoload
 (defun diredfd-history-backward ()
   "Go to the previous directory in history"
   (interactive)
@@ -724,7 +724,7 @@ For a list of macros usable in a shell command line, see
     (set diredfd-enter-history-variable (nconc (cdr rest) (list curr)))
     (diredfd-enter-directory (car rest))))
 
-;;###autoload
+;;;###autoload
 (defun diredfd-history-forward ()
   "Go to the next directory in history"
   (interactive)
