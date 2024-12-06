@@ -682,21 +682,23 @@ For a list of macros usable in a shell command line, see
   (set-buffer-modified-p nil)
   (let ((nav diredfd-nav-mode)
         (sort-key diredfd-sort-key)
-        (sort-direction diredfd-sort-direction))
-    (if (and server-buffer-clients
-             (cl-loop for proc in server-buffer-clients
-                      thereis (and (memq proc server-clients)
-                                   (eq (process-status proc) 'open))))
-        ;; Keep a directory buffer opened with emacsclient
-        (let ((find-file-run-dired t))
-          (find-file directory))
-      (find-alternate-file directory))
-    (add-to-history diredfd-enter-history-variable directory nil t)
-    (revert-buffer)
-    (diredfd-do-sort sort-key sort-direction)
-    (if nav (diredfd-nav-mode 1)))
-  (if filename
-      (diredfd-goto-filename filename)))
+        (sort-direction diredfd-sort-direction)
+        (fullpath (file-name-concat directory filename)))
+    (or (dired-goto-file fullpath)
+        (if (and server-buffer-clients
+                 (cl-loop for proc in server-buffer-clients
+                          thereis (and (memq proc server-clients)
+                                       (eq (process-status proc) 'open))))
+            ;; Keep a directory buffer opened with emacsclient
+            (let ((find-file-run-dired t))
+              (find-file directory))
+          (find-alternate-file directory))
+        (add-to-history diredfd-enter-history-variable directory nil t)
+        (revert-buffer)
+        (diredfd-do-sort sort-key sort-direction)
+        (if nav (diredfd-nav-mode 1))
+        (if filename
+            (diredfd-goto-filename filename)))))
 
 ;;;###autoload
 (defun diredfd-enter-parent-directory ()
