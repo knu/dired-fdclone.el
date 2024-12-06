@@ -54,6 +54,7 @@
 ;; * diredfd-enter-root-directory
 ;; * diredfd-history-backward
 ;; * diredfd-history-forward
+;; * diredfd-toggle-insert-subdir
 ;; * diredfd-follow-symlink
 ;; * diredfd-do-pack
 ;; * diredfd-do-rename
@@ -737,6 +738,28 @@ For a list of macros usable in a shell command line, see
     (diredfd-enter-directory (car last))))
 
 ;;;###autoload
+(defun diredfd-toggle-insert-subdir ()
+  "Toggle the inserted subdirectory in the same buffer.
+
+If the point is on a subdirectory, insert it below into the same
+Dired buffer if not already present, and move the point to there.
+
+Otherwise, remove the inserted subdirectory from the buffer and
+go back to the parent in the same buffer."
+  (interactive)
+  (let* ((dirname (dired-get-filename nil t)))
+    (unless
+        (ignore-errors
+          (when (and dirname
+                     (not (member (file-name-nondirectory dirname)
+                                  '("." ".."))))
+            (dired-maybe-insert-subdir dirname)
+            (dired-goto-file (file-name-concat dirname ".."))))
+      (dired-kill-subdir)
+      (or (dired-goto-file (file-name-directory dirname))
+          (dired-goto-file (file-name-concat dired-directory ".."))))))
+
+;;;###autoload
 (defun diredfd-follow-symlink ()
   "Follow the s parent directory."
   (interactive)
@@ -1152,6 +1175,7 @@ with the longest match is adopted so `.tar.gz' is chosen over
   (define-key dired-mode-map "d"         'dired-do-delete)
   (define-key dired-mode-map "f"         'diredfd-narrow-to-files-regexp)
   (define-key dired-mode-map "h"         'diredfd-do-shell-command)
+  (define-key dired-mode-map "i"         'diredfd-toggle-insert-subdir)
   (define-key dired-mode-map "k"         'dired-create-directory)
   (define-key dired-mode-map "J"         'diredfd-follow-symlink)
   (define-key dired-mode-map "l"         'diredfd-enter-directory)
