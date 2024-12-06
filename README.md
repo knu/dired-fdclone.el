@@ -1,4 +1,4 @@
-# dired-fdclone.el
+# diredfd.el
 
 This package includes functions and settings for dired to make it work
 and feel like the legendary file manager
@@ -10,7 +10,7 @@ It also implements some original features to make it even more useful.
 
 ## Functions
 
-dired-fdclone.el provides the following interactive commands:
+diredfd.el provides the following interactive commands:
 
 * diredfd-goto-top
 * diredfd-goto-bottom
@@ -31,6 +31,7 @@ dired-fdclone.el provides the following interactive commands:
 * diredfd-enter-root-directory
 * diredfd-history-backward
 * diredfd-history-forward
+* diredfd-toggle-insert-subdir
 * diredfd-follow-symlink
 * diredfd-do-pack
 * diredfd-do-rename
@@ -48,10 +49,11 @@ The above functions are mostly usable stand-alone, but if you feel
 like _omakase_, add the following line to your setup.
 
 ```elisp
-(dired-fdclone)
+(diredfd-enable)
 ```
 
-This makes dired:
+This makes dired automatically turn on `diredfd-mode` in `dired-mode`
+that provides the following features:
 
 - color directories in cyan and symlinks in yellow like FDclone
 - sort directory listings in the directory-first style
@@ -67,7 +69,7 @@ Without spoiling dired's existing features.
 
 As usual, customization is available via:
 
-    M-x customize-group dired-fdclone RET
+    M-x customize-group diredfd RET
 
 ## Author
 
@@ -76,5 +78,5 @@ Copyright (c) 2014-2024 Akinori MUSHA.
 Licensed under the 2-clause BSD license.  See `LICENSE.txt` for
 details.
 
-Visit the [GitHub Repository](https://github.com/knu/dired-fdclone.el)
+Visit the [GitHub Repository](https://github.com/knu/diredfd.el)
 for the latest information.

@@ -1,4 +1,4 @@
-;;; dired-fdclone.el --- dired functions and settings to mimic FDclone
+;;; diredfd.el --- dired functions and settings to mimic FD/FDclone
 ;;
 ;; Copyright (c) 2014-2024 Akinori MUSHA
 ;;
@@ -26,14 +26,14 @@
 ;; SUCH DAMAGE.
 
 ;; Author: Akinori MUSHA <knu@iDaemons.org>
-;; URL: https://github.com/knu/dired-fdclone.el
+;; URL: https://github.com/knu/diredfd.el
 ;; Created: 25 Dec 2014
-;; Version: 1.6.4
+;; Version: 2.0.0
 ;; Keywords: unix, directories, dired
 
 ;;; Commentary:
 ;;
-;; dired-fdclone.el provides the following interactive commands:
+;; diredfd.el provides the following interactive commands:
 ;;
 ;; * diredfd-goto-top
 ;; * diredfd-goto-bottom
@@ -65,9 +65,10 @@
 ;; The above functions are mostly usable stand-alone, but if you feel
 ;; like "omakase", add the following line to your setup.
 ;;
-;;   (dired-fdclone)
+;;   (diredfd-enable)
 ;;
-;; This makes dired:
+;; This makes dired automatically turn on `diredfd-mode' in
+;; `dired-mode' that provides the following features:
 ;;
 ;; - color directories in cyan and symlinks in yellow like FDclone
 ;; - sort directory listings in the directory-first style
@@ -84,7 +85,7 @@
 ;;
 ;; As usual, customization is available via:
 ;;
-;;   M-x customize-group dired-fdclone RET
+;;   M-x customize-group diredfd RET
 
 ;;; Code:
 
@@ -97,14 +98,19 @@
   (require 'server)
   (require 'subr-x))
 
-(defgroup dired-fdclone nil
-  "Dired functions and settings to mimic FDclone."
+(defgroup diredfd nil
+  "Dired functions and settings to mimic FD/FDclone."
   :group 'dired)
+
+(defcustom diredfd-omakase nil
+  "Enable diredfd `omakase' settings."
+  :type 'boolean
+  :group 'diredfd)
 
 (defcustom diredfd-auto-revert t
   "Automatically revert dired buffers after an interactive command is run."
   :type 'boolean
-  :group 'dired-fdclone)
+  :group 'diredfd)
 
 (defvar diredfd-enter-history nil
   "Default variable for `diredfd-enter-history-variable'.")
@@ -112,12 +118,12 @@
 (defcustom diredfd-enter-history-variable 'diredfd-enter-history
   "History list to use for diredfd-enter."
   :type 'symbol
-  :group 'dired-fdclone)
+  :group 'diredfd)
 
 (defcustom diredfd-add-visited-file-to-file-name-history-p t
   "If non-nil, visited files will be added to `file-name-history'."
   :type 'boolean
-  :group 'dired-fdclone)
+  :group 'diredfd)
 
 (defvar diredfd--add-to-file-name-history nil
   "Internal flag.
@@ -125,20 +131,14 @@
 If non-nil, the result of `dired-get-file-for-visit' is added to
 `file-name-history'.")
 
-(defadvice dired-get-file-for-visit
-    (after diredfd activate)
+(defun diredfd--ad-add-file-name-to-history (value)
   (if diredfd--add-to-file-name-history
-      (add-to-history 'file-name-history ad-return-value)))
+      (add-to-history 'file-name-history value))
+  value)
 
-(defadvice dired-find-file
-    (around diredfd activate)
+(defun diredfd--ad-turn-on-add-to-file-name-history (orig-func)
   (let ((diredfd--add-to-file-name-history t))
-    ad-do-it))
-
-(defadvice dired-find-file-other-window
-    (around diredfd activate)
-  (let ((diredfd--add-to-file-name-history t))
-    ad-do-it))
+    (funcall orig-func)))
 
 (defun diredfd-auto-revert ()
   (if diredfd-auto-revert
@@ -160,65 +160,40 @@ If non-nil, the result of `dired-get-file-for-visit' is added to
     dired-do-delete
     dired-do-rename))
 
-(defmacro diredfd-add-after-advice (name &rest body)
-  `(progn
-     (ad-add-advice ,name
-                    '(diredfd
-                      nil t
-                      (advice . (lambda () ,@body)))
-                    'after 'last)
-     (ad-activate ,name)))
+(defun diredfd--ad-auto-revert (&rest args)
+  (diredfd-auto-revert))
 
-(defun diredfd-advice-auto-revert (command)
-  (diredfd-add-after-advice command
-                            (diredfd-auto-revert)))
+(defun diredfd--ad-auto-revert-if-sync (&rest args)
+  (or (bound-and-true-p dired-async-be-async)
+                                (diredfd-auto-revert)))
 
-(defun diredfd-advice-auto-revert-if-sync (command)
-  (diredfd-add-after-advice command
-                            (or (bound-and-true-p dired-async-be-async)
-                                (diredfd-auto-revert))))
+(defun diredfd--ad-auto-revert-and-restore-point (&rest args)
+  ;; save and restore the point
+  (let ((filename (dired-get-filename nil t)))
+    (if (memq this-command diredfd-auto-revert-redisplaying-command-list)
+        (diredfd-auto-revert))
+    (diredfd-goto-filename filename)))
 
-;;;###autoload
-(defun diredfd-enable-auto-revert ()
-  "Enable auto-revert settings for dired.
-
-`dired-async' is supported."
-
-  (dolist (command diredfd-auto-revert-command-list)
-    (diredfd-advice-auto-revert command))
-
-  (defadvice dired-do-redisplay
-      (after diredfd activate)
-    ;; save and restore the point
-    (let ((filename (dired-get-filename nil t)))
-      (if (memq this-command diredfd-auto-revert-redisplaying-command-list)
-          (diredfd-auto-revert))
-      (diredfd-goto-filename filename)))
-
-  (dolist (command diredfd-auto-revert-maybe-async-command-list)
-    (diredfd-advice-auto-revert-if-sync command))
-
-  (defadvice dired-async-after-file-create
-      (around diredfd activate)
-    (let ((revert (and
-                   diredfd-auto-revert
-                   (bound-and-true-p dired-async-mode))))
-      ad-do-it
-      (if revert
-          (dolist (buffer (buffer-list))
-            (with-current-buffer buffer
-              (if (eq major-mode 'dired-mode)
-                  (revert-buffer))))))))
+(defun diredfd--ad-auto-revert-async (orig-func &rest args)
+  (let ((revert (and
+                 diredfd-auto-revert
+                 (bound-and-true-p dired-async-mode))))
+    (apply orig-func args)
+    (if revert
+        (dolist (buffer (buffer-list))
+          (with-current-buffer buffer
+            (if (eq major-mode 'dired-mode)
+                (revert-buffer)))))))
 
 (defcustom diredfd-nav-width 25
   "Default window width of `diredfd-nav-mode'."
   :type 'integer
-  :group 'dired-fdclone)
+  :group 'diredfd)
 
 ;;;###autoload
 (define-minor-mode diredfd-nav-mode
   "Toggle nav mode."
-  :group 'dired-fdclone
+  :group 'diredfd
   (unless (derived-mode-p 'dired-mode)
     (error "Not a Dired buffer"))
   (if diredfd-nav-mode
@@ -648,14 +623,14 @@ For a list of macros usable in a shell command line, see
                              `(const :tag ,(capitalize (symbol-name symbol))
                                      ,symbol))
                            diredfd-sort-keys))
-  :group 'dired-fdclone)
+  :group 'diredfd)
 (make-variable-buffer-local 'dired-sort-key)
 
 (defcustom diredfd-sort-direction 'asc
   "If non-nil, sort directory listings in descending order."
   :type '(choice (const :tag "Ascending" asc)
                  (const :tag "Descending" desc))
-  :group 'dired-fdclone)
+  :group 'diredfd)
 (make-variable-buffer-local 'diredfd-sort-direction)
 
 (defsubst diredfd-sort-desc-p ()
@@ -761,7 +736,7 @@ go back to the parent in the same buffer."
 
 ;;;###autoload
 (defun diredfd-follow-symlink ()
-  "Follow the s parent directory."
+  "Follow the symbolic link."
   (interactive)
   (let* ((file (or (dired-get-filename nil t)
                    (error "No file to follow")))
@@ -868,7 +843,7 @@ with the longest match is adopted so `.tar.gz' is chosen over
 				 (string :format "%v")
 				 (const :tag "No archive command" nil))
                          (string :tag "Unarchive Command")))
-  :group 'dired-fdclone)
+  :group 'diredfd)
 
 (defsubst diredfd-archive-info-regexp            (info) (and info (aref info 0)))
 (defsubst diredfd-archive-info-archive-command   (info) (and info (aref info 1)))
@@ -1124,15 +1099,12 @@ with the longest match is adopted so `.tar.gz' is chosen over
 (defcustom diredfd-highlight-line t
   "If non-nil, the current line is highlighted like FDclone."
   :type 'boolean
-  :group 'dired-fdclone)
+  :group 'diredfd)
 
 (defcustom diredfd-sort-by-type t
   "If non-nil, directory entries are sorted by file type (directories first)."
   :type 'boolean
-  :group 'dired-fdclone)
-
-(defun diredfd-dired-mode-setup ()
-  (if diredfd-highlight-line (hl-line-mode 1)))
+  :group 'diredfd)
 
 (defun diredfd-dired-after-readin-setup ()
   (if diredfd-sort-by-type (diredfd-sort)))
@@ -1148,58 +1120,132 @@ with the longest match is adopted so `.tar.gz' is chosen over
     (beginning-of-line)
     (recenter 0)))
 
+(defvar diredfd--enabled nil
+  "Non-nil if diredfd is enabled.")
+
+(defun diredfd--enable ()
+  "Enable the `diredfd' features."
+  (unless (derived-mode-p 'dired-mode)
+    (error "Not a Dired buffer"))
+  (unless diredfd--enabled
+    (advice-add #'dired-get-file-for-visit :filter-return #'diredfd--ad-add-file-name-to-history)
+    (advice-add #'dired-find-file :around #'diredfd--ad-turn-on-add-to-file-name-history)
+    (advice-add #'dired-find-file-other-window :around #'diredfd--ad-turn-on-add-to-file-name-history)
+
+    (dolist (command diredfd-auto-revert-command-list)
+      (advice-add command :after #'diredfd--ad-auto-revert))
+
+    (advice-add #'dired-do-redisplay :after #'diredfd--ad-auto-revert-and-restore-point)
+
+    (dolist (command diredfd-auto-revert-maybe-async-command-list)
+      (advice-add command :after #'diredfd--ad-auto-revert-if-sync))
+
+    (if (fboundp 'dired-async-after-file-create)
+        (advice-add #'dired-async-after-file-create :around #'diredfd--ad-auto-revert-async))
+
+    (setq diredfd--enabled t))
+  (add-hook 'dired-after-readin-hook 'diredfd-dired-after-readin-setup t t)
+  (setq-local dired-deletion-confirmer 'y-or-n-p)
+  (face-remap-set-base 'dired-directory 'diredfd-directory)
+  (face-remap-set-base 'dired-symlink   'diredfd-symlink)
+  (and diredfd-highlight-line (hl-line-mode 1)))
+
+(defun diredfd--disable ()
+  "Disable the `diredfd' features."
+  (unless (derived-mode-p 'dired-mode)
+    (error "Not a Dired buffer"))
+  (when diredfd--enabled
+    (advice-remove #'dired-get-file-for-visit #'diredfd--ad-add-file-name-to-history)
+    (advice-remove #'dired-find-file #'diredfd--ad-turn-on-add-to-file-name-history)
+    (advice-remove #'dired-find-file-other-window #'diredfd--ad-turn-on-add-to-file-name-history)
+
+    (dolist (command diredfd-auto-revert-command-list)
+      (advice-remove command #'diredfd--ad-auto-revert))
+
+    (advice-remove #'dired-do-redisplay #'diredfd--ad-auto-revert-and-restore-point)
+
+    (dolist (command diredfd-auto-revert-maybe-async-command-list)
+      (advice-remove command #'diredfd--ad-auto-revert-if-sync))
+
+    (if (fboundp 'dired-async-after-file-create)
+        (advice-remove #'dired-async-after-file-create #'diredfd--ad-auto-revert-async))
+
+    (setq diredfd--enabled nil))
+  (remove-hook 'dired-after-readin-hook 'diredfd-dired-after-readin-setup t)
+  (kill-local-variable 'dired-deletion-confirmer)
+  (face-remap-reset-base 'dired-directory)
+  (face-remap-reset-base 'dired-symlink)
+  (hl-line-mode 0))
+
+(defvar diredfd-mode-map
+  (let ((map (make-sparse-keymap)))
+    (define-key map (kbd "TAB") 'diredfd-toggle-mark-here)
+    (define-key map (kbd "DEL") 'diredfd-enter-parent-directory)
+    (define-key map (kbd "RET") 'diredfd-enter)
+    (define-key map " "         'diredfd-toggle-mark)
+    (define-key map "("         'diredfd-nav-mode)
+    (define-key map "*"         'dired-mark-files-regexp)
+    (define-key map "+"         'diredfd-mark-or-unmark-all)
+    (define-key map "-"         'diredfd-toggle-all-marks)
+    (define-key map "/"         'dired-do-search)
+    (define-key map "<"         'diredfd-goto-top)
+    (define-key map ">"         'diredfd-goto-bottom)
+    (define-key map "["         'diredfd-history-backward)
+    (define-key map "]"         'diredfd-history-forward)
+    (define-key map [remap beginning-of-buffer] 'diredfd-goto-top)
+    (define-key map [remap end-of-buffer]       'diredfd-goto-bottom)
+    (define-key map "?"         'diredfd-help)
+    (define-key map "D"         'dired-flag-file-deletion)
+    (define-key map [remap dired-unmark-all-marks] 'diredfd-unmark-all-marks)
+    (define-key map "\\"        'diredfd-enter-root-directory)
+    (define-key map "a"         'dired-do-chmod)
+    (define-key map "c"         'dired-do-copy)
+    (define-key map "d"         'dired-do-delete)
+    (define-key map "f"         'diredfd-narrow-to-files-regexp)
+    (define-key map "h"         'diredfd-do-shell-command)
+    (define-key map "i"         'diredfd-toggle-insert-subdir)
+    (define-key map "k"         'dired-create-directory)
+    (define-key map "J"         'diredfd-follow-symlink)
+    (define-key map "l"         'diredfd-enter-directory)
+    (define-key map "m"         'dired-do-rename)
+    (define-key map "n"         'diredfd-narrow-to-marked-files)
+    (define-key map "p"         'diredfd-do-pack)
+    (define-key map "r"         'diredfd-do-rename)
+    (define-key map "s"         'diredfd-do-sort)
+    (define-key map "u"         'diredfd-do-unpack)
+    (define-key map "v"         'diredfd-view-file)
+    (define-key map "x"         'diredfd-do-flagged-delete-or-execute)
+    map)
+  "Keymap used in `diredfd-mode'.")
+
+(defface diredfd-directory
+  '((t :inherit font-lock-function-name-face :foreground "cyan"))
+  "Face to use for directories in `diredfd-mode'."
+  :group 'diredfd)
+
+(defface diredfd-symlink
+  '((t :inherit font-lock-keyword-face :foreground "yellow"))
+  "Face to use for symlinks in `diredfd-mode'."
+  :group 'diredfd)
+
 ;;;###autoload
-(defun dired-fdclone ()
-  "Enable FDclone mimicking settings for dired."
-  (define-key dired-mode-map (kbd "TAB") 'diredfd-toggle-mark-here)
-  (define-key dired-mode-map (kbd "DEL") 'diredfd-enter-parent-directory)
-  (define-key dired-mode-map (kbd "RET") 'diredfd-enter)
-  (define-key dired-mode-map " "         'diredfd-toggle-mark)
-  (define-key dired-mode-map "("         'diredfd-nav-mode)
-  (define-key dired-mode-map "*"         'dired-mark-files-regexp)
-  (define-key dired-mode-map "+"         'diredfd-mark-or-unmark-all)
-  (define-key dired-mode-map "-"         'diredfd-toggle-all-marks)
-  (define-key dired-mode-map "/"         'dired-do-search)
-  (define-key dired-mode-map "<"         'diredfd-goto-top)
-  (define-key dired-mode-map ">"         'diredfd-goto-bottom)
-  (define-key dired-mode-map "["         'diredfd-history-backward)
-  (define-key dired-mode-map "]"         'diredfd-history-forward)
-  (define-key dired-mode-map [remap beginning-of-buffer] 'diredfd-goto-top)
-  (define-key dired-mode-map [remap end-of-buffer]       'diredfd-goto-bottom)
-  (define-key dired-mode-map "?"         'diredfd-help)
-  (define-key dired-mode-map "D"         'dired-flag-file-deletion)
-  (define-key dired-mode-map [remap dired-unmark-all-marks] 'diredfd-unmark-all-marks)
-  (define-key dired-mode-map "\\"        'diredfd-enter-root-directory)
-  (define-key dired-mode-map "a"         'dired-do-chmod)
-  (define-key dired-mode-map "c"         'dired-do-copy)
-  (define-key dired-mode-map "d"         'dired-do-delete)
-  (define-key dired-mode-map "f"         'diredfd-narrow-to-files-regexp)
-  (define-key dired-mode-map "h"         'diredfd-do-shell-command)
-  (define-key dired-mode-map "i"         'diredfd-toggle-insert-subdir)
-  (define-key dired-mode-map "k"         'dired-create-directory)
-  (define-key dired-mode-map "J"         'diredfd-follow-symlink)
-  (define-key dired-mode-map "l"         'diredfd-enter-directory)
-  (define-key dired-mode-map "m"         'dired-do-rename)
-  (define-key dired-mode-map "n"         'diredfd-narrow-to-marked-files)
-  (define-key dired-mode-map "p"         'diredfd-do-pack)
-  (define-key dired-mode-map "r"         'diredfd-do-rename)
-  (define-key dired-mode-map "s"         'diredfd-do-sort)
-  (define-key dired-mode-map "u"         'diredfd-do-unpack)
-  (define-key dired-mode-map "v"         'diredfd-view-file)
-  (define-key dired-mode-map "x"         'diredfd-do-flagged-delete-or-execute)
+(define-minor-mode diredfd-mode
+  "Toggle diredfd mode."
+  :group 'diredfd
+  (if diredfd-mode
+      (diredfd--enable)
+    (diredfd--disable)))
 
-  (set-face-attribute 'dired-directory
-                      nil :inherit font-lock-function-name-face :foreground "cyan")
-  (set-face-attribute 'dired-symlink
-                      nil :inherit font-lock-keyword-face :foreground "yellow")
+;;;###autoload
+(defun diredfd-enable ()
+  "Enable `diredfd' that makes `dired' look and feel like FD/FDclone."
+  (add-hook 'dired-mode-hook 'diredfd-mode))
 
-  (setq dired-deletion-confirmer 'y-or-n-p)
+;;;###autoload
+(defun diredfd-disable ()
+  "Disable `diredfd' that makes `dired' look and feel like FD/FDclone."
+  (remove-hook 'dired-mode-hook 'diredfd-mode))
 
-  (diredfd-enable-auto-revert)
+(provide 'diredfd)
 
-  (add-hook 'dired-mode-hook 'diredfd-dired-mode-setup)
-  (add-hook 'dired-after-readin-hook 'diredfd-dired-after-readin-setup))
-
-(provide 'dired-fdclone)
-
-;;; dired-fdclone.el ends here
+;;; diredfd.el ends here
