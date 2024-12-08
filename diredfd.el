@@ -28,7 +28,7 @@
 ;; Author: Akinori MUSHA <knu@iDaemons.org>
 ;; URL: https://github.com/knu/diredfd.el
 ;; Created: 25 Dec 2014
-;; Version: 2.0.0
+;; Version: 2.0.1
 ;; Package-Requires: ((emacs "28.1"))
 ;; Keywords: unix, directories, dired
 
@@ -97,7 +97,8 @@
 (eval-when-compile
   (require 'cl-lib)
   (require 'server)
-  (require 'subr-x))
+  (require 'subr-x)
+  (require 'wdired))
 
 (defgroup diredfd nil
   "Dired functions and settings to mimic FD/FDclone."
@@ -196,6 +197,18 @@ This wraps ORIG-FUNC called with ARGS."
           (with-current-buffer buffer
             (if (eq major-mode 'dired-mode)
                 (revert-buffer)))))))
+
+(defun diredfd--ad-wdired-change-to-wdired-mode ()
+  "Internal advice function of diredfd."
+  (setq-local minor-mode-map-alist
+              (cl-loop for (mode . keymap)
+                       in minor-mode-map-alist
+                       unless (eq mode 'diredfd-mode)
+                       collect (cons mode keymap))))
+
+(defun diredfd--ad-wdired-change-to-dired-mode ()
+  "Internal advice function of diredfd."
+  (kill-local-variable 'minor-mode-map-alist))
 
 (defcustom diredfd-nav-width 25
   "Default window width of `diredfd-nav-mode'."
@@ -1169,6 +1182,11 @@ SORT-KEY and SORT-DIRECTION are asked in interactive mode."
     (advice-add #'dired-find-file :around #'diredfd--ad-turn-on-add-to-file-name-history)
     (advice-add #'dired-find-file-other-window :around #'diredfd--ad-turn-on-add-to-file-name-history)
 
+    (and (fboundp 'wdired-change-to-wdired-mode)
+         (advice-add #'wdired-change-to-wdired-mode :after #'diredfd--ad-wdired-change-to-wdired-mode))
+    (and (fboundp 'wdired-change-to-dired-mode)
+         (advice-add #'wdired-change-to-dired-mode :after #'diredfd--ad-wdired-change-to-dired-mode))
+
     (dolist (command diredfd-auto-revert-command-list)
       (advice-add command :after #'diredfd--ad-auto-revert))
 
@@ -1195,6 +1213,11 @@ SORT-KEY and SORT-DIRECTION are asked in interactive mode."
     (advice-remove #'dired-get-file-for-visit #'diredfd--ad-add-file-name-to-history)
     (advice-remove #'dired-find-file #'diredfd--ad-turn-on-add-to-file-name-history)
     (advice-remove #'dired-find-file-other-window #'diredfd--ad-turn-on-add-to-file-name-history)
+
+    (and (fboundp 'wdired-change-to-dired-mode)
+         (advice-remove #'wdired-change-to-dired-mode #'diredfd--ad-wdired-change-to-dired-mode))
+    (and (fboundp 'wdired-change-to-wdired-mode)
+         (advice-remove #'wdired-change-to-wdired-mode #'diredfd--ad-wdired-change-to-wdired-mode))
 
     (dolist (command diredfd-auto-revert-command-list)
       (advice-remove command #'diredfd--ad-auto-revert))
