@@ -41,7 +41,8 @@
 (require 'diredfd)
 
 ;;;###autoload
-(defalias 'dired-fdclone #'diredfd-enable)
+(define-obsolete-function-alias 'dired-fdclone #'diredfd-enable "2.0.0"
+  "The package was renamed from `dired-fdclone' to `diredfd'; use `diredfd-enable' instead.")
 
 (provide 'dired-fdclone)
 
