@@ -200,15 +200,11 @@ This wraps ORIG-FUNC called with ARGS."
 
 (defun diredfd--ad-wdired-change-to-wdired-mode ()
   "Internal advice function of diredfd."
-  (setq-local minor-mode-map-alist
-              (cl-loop for (mode . keymap)
-                       in minor-mode-map-alist
-                       unless (eq mode 'diredfd-mode)
-                       collect (cons mode keymap))))
+  (setf (alist-get 'diredfd-mode minor-mode-overriding-map-alist) nil))
 
 (defun diredfd--ad-wdired-change-to-dired-mode ()
   "Internal advice function of diredfd."
-  (kill-local-variable 'minor-mode-map-alist))
+  (setq minor-mode-overriding-map-alist (assq-delete-all 'diredfd-mode minor-mode-overriding-map-alist)))
 
 (defcustom diredfd-nav-width 25
   "Default window width of `diredfd-nav-mode'."
